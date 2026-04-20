@@ -244,6 +244,14 @@ When content outline pages involve **data visualization or infographic-style str
 
 ### Speaker Notes Requirements (Default — no discussion needed)
 
+- **Hard boundary**: Section IX Content Outline and downstream `main_content.md` must describe **audience-facing visible slide copy only**. Presenter reminders, explanation of why a page exists, speaking instructions, and review comments belong in Section X / `notes/`, not in slide body text.
+- **Forbidden visible-slide patterns unless the user explicitly asks for an internal/annotated deck**:
+  - "这页的作用是..."
+  - "管理层要看的不是..."
+  - "建议口头讲..."
+  - "现场建议播放..."
+  - "对应问题：..."
+  - any wording that describes presenter behavior instead of audience-facing content
 - File naming: Recommended to match SVG names (`01_cover.svg` → `notes/01_cover.md`), also compatible with `notes/slide01.md`
 - Fill in the Design Spec: total presentation duration, notes style (formal / conversational / interactive), presentation purpose (inform / persuade / inspire / instruct / report)
 - Split note files must NOT contain `#` heading lines (`notes/total.md` master document MUST use `#` heading lines)

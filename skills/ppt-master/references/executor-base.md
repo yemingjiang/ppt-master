@@ -46,6 +46,8 @@ Must output confirmation including: canvas dimensions, body font size, color sch
 - **Absolute spec adherence**: Strictly follow the color, layout, canvas format, and typography parameters in the spec
 - **Follow template structure**: If templates exist, inherit the template's visual framework
 - **Default responsibility**: Produce a reviewable skeleton package first, not the final polished `.pptx`, unless the user explicitly requests direct export from `ppt-master`
+- **Audience-facing visible copy only**: Text placed in SVG pages is presumed to be shown to the presentation audience. Do NOT place presenter instructions, review comments, layout rationale, or meta-explanations on the slide surface unless the user explicitly requests an internal annotated deck.
+- **Move meta language to notes**: Phrases such as "这页的作用是...", "管理层要看的不是...", "建议口头讲...", "现场建议播放...", "对应问题：..." must be rewritten as audience-facing slide copy or moved to `notes/total.md`.
 - **Main-agent ownership**: SVG generation must be performed by the current main agent, not delegated to sub-agents, because each page depends on shared upstream context and cross-page visual continuity
 - **Generation rhythm**: First lock the global design context, then generate pages sequentially one by one in the same continuous context; grouped page batches (for example, 5 pages at a time) are not allowed
 - **Phased batch generation** (recommended):

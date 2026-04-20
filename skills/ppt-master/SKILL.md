@@ -36,6 +36,21 @@ description: >
 > - **Template format**: The `design_spec.md` file MUST always follow its original English template structure (section headings, field names), regardless of the conversation language. Content values within the template may be in the user's language.
 
 > [!IMPORTANT]
+> ## 🗣️ Audience-Facing Slide Copy Rule
+>
+> - **Default assumption**: Unless the user explicitly asks for an internal review deck, presenter-training deck, or annotation-heavy workshop deck, every visible slide is an **audience-facing deliverable**.
+> - **Visible slide text MUST read like final presentation copy**: concise, direct, externally presentable, and appropriate for the intended audience.
+> - **Internal or meta language is FORBIDDEN on slides by default**. Move it to `notes/` instead. Examples that belong in speaker notes rather than visible slide text:
+>   - "这页的作用是..."
+>   - "管理层要看的是..."
+>   - "建议口头只讲 3 点"
+>   - "现场建议播放..."
+>   - "对应问题：..."
+>   - any wording that explains the presenter workflow rather than the slide message itself
+> - `main_content.md` is the editable source for slide structure, but its per-page wording should still default to **audience-facing on-slide copy**. Presenter intent, narration strategy, and review comments belong in `notes/total.md` or per-page note files.
+> - During review, if any visible page reads like an annotation, design rationale note, rehearsal prompt, or production comment, rewrite it as audience-facing slide copy and move the original rationale into speaker notes.
+
+> [!IMPORTANT]
 > ## 🔌 Compatibility With Generic Coding Skills
 >
 > - `ppt-master` is a repository-specific workflow skill, not a general application scaffold

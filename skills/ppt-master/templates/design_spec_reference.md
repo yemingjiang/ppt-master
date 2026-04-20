@@ -199,6 +199,8 @@
 
 ## IX. Content Outline
 
+> **Audience-facing copy rule**: All wording specified in this section should be suitable for visible slide text or direct audience consumption. Presenter instructions, production notes, review comments, and explanations of slide intent belong in section X Speaker Notes Requirements, not here.
+
 ### Part 1: [Chapter Name]
 
 #### Slide 01 - Cover
