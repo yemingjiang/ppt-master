@@ -45,11 +45,12 @@ Must output confirmation including: canvas dimensions, body font size, color sch
 - **Proximity principle**: Place related elements close together to form visual groups; increase spacing between unrelated groups to reinforce logical structure
 - **Absolute spec adherence**: Strictly follow the color, layout, canvas format, and typography parameters in the spec
 - **Follow template structure**: If templates exist, inherit the template's visual framework
+- **Default responsibility**: Produce a reviewable skeleton package first, not the final polished `.pptx`, unless the user explicitly requests direct export from `ppt-master`
 - **Main-agent ownership**: SVG generation must be performed by the current main agent, not delegated to sub-agents, because each page depends on shared upstream context and cross-page visual continuity
 - **Generation rhythm**: First lock the global design context, then generate pages sequentially one by one in the same continuous context; grouped page batches (for example, 5 pages at a time) are not allowed
 - **Phased batch generation** (recommended):
-  1. **Visual Construction Phase**: Generate all SVG pages continuously in sequential page order, ensuring high consistency in design style and layout coordinates (Visual Consistency)
-  2. **Logic Construction Phase**: After all SVGs are finalized, batch-generate speaker notes to ensure narrative coherence (Narrative Continuity)
+  1. **Visual Draft Construction Phase**: Generate all SVG pages continuously in sequential page order, ensuring high consistency in design style and layout coordinates (Visual Consistency)
+  2. **Draft Packaging Phase**: After all SVGs are finalized, batch-generate the skeleton support files (`main_content.md`, `style_sheet.md`, `asset_manifest.md`, `notes/total.md`, `preview/index.html`) to ensure narrative coherence and clean handoff
 - **Technical specifications**: See [shared-standards.md](shared-standards.md) for SVG technical constraints and PPT compatibility rules
 - **Visual depth**: Use filter shadows, glow effects, gradient fills, dashed strokes, and gradient overlays from shared-standards.md to create layered depth — flat pages without elevation or emphasis look unfinished
 
@@ -61,6 +62,27 @@ File naming format: `<number>_<page_name>.svg`
 - **English content** → English naming: `01_cover.svg`, `02_agenda.svg`, `03_key_benefits.svg`
 - **Number rules**: Two-digit numbers, starting from 01
 - **Page name**: Concise and descriptive, matching the page title in the Design Specification & Content Outline
+
+### Required Draft Package Deliverables
+
+Unless the user explicitly asks for legacy direct export, the Executor should leave behind a reviewable skeleton package:
+
+- `<project_path>/main_content.md` — synchronized slide outline for human editing
+- `<project_path>/style_sheet.md` — fonts, colors, size minimums, page numbering, component rules
+- `<project_path>/asset_manifest.md` — per-page assets and their intended use
+- `<project_path>/notes/total.md` — complete speaker notes
+- `<project_path>/preview/index.html` — preferred review surface
+- `<project_path>/svg_output/` — raw page visuals
+
+Preferred preview flow:
+
+```bash
+python3 scripts/generate_skeleton_docs.py <project_path> --overwrite
+python3 scripts/build_preview_html.py <project_path> --source output
+python3 scripts/review_server.py <project_path> --source output
+```
+
+Use `draft.pdf` only when the user explicitly prefers a static file for review.
 
 ---
 
@@ -234,9 +256,16 @@ Automatically split `notes/total.md` into individual speaker note files in the `
 
 ## 9. Next Steps After Completion
 
-> **Auto-continuation**: After Visual Construction Phase (all SVG pages) and Logic Construction Phase (all notes) are complete, the Executor proceeds directly to the post-processing pipeline.
+> **Default continuation**: After Visual Draft Construction Phase (all SVG pages) and Draft Packaging Phase (all handoff files) are complete, the Executor should present the draft for human review rather than exporting PPTX immediately.
 
-**Post-processing & Export** (see [shared-standards.md](shared-standards.md)):
+**Default path**:
+
+1. Build or refresh `preview/index.html`
+2. Present the draft and collect human feedback
+3. Iterate on `main_content.md`, `style_sheet.md`, `asset_manifest.md`, `notes/`, and SVG pages until the skeleton is confirmed
+4. Hand off to the `PowerPoint` skill for final editable production
+
+**Legacy compatibility path** (explicit request only; see [shared-standards.md](shared-standards.md)):
 
 ```bash
 # 1. Split speaker notes

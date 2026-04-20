@@ -1,17 +1,18 @@
 ---
 name: ppt-master
 description: >
-  AI-driven multi-format SVG content generation system. Converts source documents
-  (PDF/DOCX/URL/Markdown) into high-quality SVG pages and exports to PPTX through
-  multi-role collaboration. Use when user asks to "create PPT", "make presentation",
-  "生成PPT", "做PPT", "制作演示文稿", or mentions "ppt-master".
+  Use when the user has source materials and needs a presentation skeleton,
+  slide-by-slide outline, visual direction, reviewable draft, and handoff package
+  before building the final editable PowerPoint, or when they mention "ppt-master".
 ---
 
 # PPT Master Skill
 
-> AI-driven multi-format SVG content generation system. Converts source documents into high-quality SVG pages through multi-role collaboration and exports to PPTX.
+> Skeleton-first presentation workflow. Converts source documents into a reviewable presentation skeleton, fast HTML visual draft, and PowerPoint handoff package.
 
-**Core Pipeline**: `Source Document → Create Project → Template Option → Strategist → [Image_Generator] → Executor → Post-processing → Export`
+**Default Pipeline**: `Source Document → Create Project → Template Option → Strategist → [Image_Generator] → Skeleton Executor → Human Review Loop → PowerPoint Handoff`
+
+**Legacy Compatibility Pipeline**: `Source Document → Create Project → Template Option → Strategist → [Image_Generator] → SVG Executor → Post-processing → Export`
 
 > [!CAUTION]
 > ## 🚨 Global Execution Discipline (MANDATORY)
@@ -20,11 +21,12 @@ description: >
 >
 > 1. **SERIAL EXECUTION** — Steps MUST be executed in order; the output of each step is the input for the next. Non-BLOCKING adjacent steps may proceed continuously once prerequisites are met, without waiting for the user to say "continue"
 > 2. **BLOCKING = HARD STOP** — Steps marked ⛔ BLOCKING require a full stop; the AI MUST wait for an explicit user response before proceeding and MUST NOT make any decisions on behalf of the user
-> 3. **NO CROSS-PHASE BUNDLING** — Cross-phase bundling is FORBIDDEN. (Note: the Eight Confirmations in Step 4 are ⛔ BLOCKING — the AI MUST present recommendations and wait for explicit user confirmation before proceeding. Once the user confirms, all subsequent non-BLOCKING steps — design spec output, SVG generation, speaker notes, and post-processing — may proceed automatically without further user confirmation)
+> 3. **NO CROSS-PHASE BUNDLING** — Cross-phase bundling is FORBIDDEN. (Note: the Eight Confirmations in Step 4 are ⛔ BLOCKING — the AI MUST present recommendations and wait for explicit user confirmation before proceeding. Once the user confirms, all subsequent non-BLOCKING steps — design spec output, draft generation, and preview packaging — may proceed automatically without further user confirmation)
 > 4. **GATE BEFORE ENTRY** — Each Step has prerequisites (🚧 GATE) listed at the top; these MUST be verified before starting that Step
 > 5. **NO SPECULATIVE EXECUTION** — "Pre-preparing" content for subsequent Steps is FORBIDDEN (e.g., writing SVG code during the Strategist phase)
-> 6. **NO SUB-AGENT SVG GENERATION** — Executor Step 6 SVG generation is context-dependent and MUST be completed by the current main agent end-to-end. Delegating page SVG generation to sub-agents is FORBIDDEN
-> 7. **SEQUENTIAL PAGE GENERATION ONLY** — In Executor Step 6, after the global design context is confirmed, SVG pages MUST be generated sequentially page by page in one continuous pass. Grouped page batches (for example, 5 pages at a time) are FORBIDDEN
+> 6. **NO SUB-AGENT SVG GENERATION** — Draft SVG generation in Step 6 is context-dependent and MUST be completed by the current main agent end-to-end. Delegating page SVG generation to sub-agents is FORBIDDEN
+> 7. **SEQUENTIAL PAGE GENERATION ONLY** — In Step 6, after the global design context is confirmed, SVG pages MUST be generated sequentially page by page in one continuous pass. Grouped page batches (for example, 5 pages at a time) are FORBIDDEN
+> 8. **SKELETON-FIRST BY DEFAULT** — Unless the user explicitly asks for direct export from `ppt-master`, the default deliverable is a reviewable skeleton package (`main_content.md`, `design_spec.md`, `style_sheet.md`, `asset_manifest.md`, `notes/`, `preview/index.html`) rather than the final polished `.pptx`
 
 > [!IMPORTANT]
 > ## 🌐 Language & Communication Rule
@@ -51,13 +53,30 @@ description: >
 | `${SKILL_DIR}/scripts/source_to_md/web_to_md.cjs` | Node.js fallback for WeChat / TLS-blocked sites (use only if `curl_cffi` is unavailable; `web_to_md.py` now handles WeChat when `curl_cffi` is installed) |
 | `${SKILL_DIR}/scripts/project_manager.py` | Project init / validate / manage |
 | `${SKILL_DIR}/scripts/analyze_images.py` | Image analysis |
-| `${SKILL_DIR}/scripts/image_gen.py` | AI image generation (multi-provider) |
+| `${SKILL_DIR}/scripts/image_gen.py` | Local fallback AI image generation CLI (prefer Codex `image_gen` tool in Codex sessions) |
+| `${SKILL_DIR}/scripts/generate_skeleton_docs.py` | Generate standard `main_content.md`, `style_sheet.md`, and `asset_manifest.md` |
+| `${SKILL_DIR}/scripts/build_preview_html.py` | Build lightweight HTML review draft from `svg_output/` or `svg_final/` |
+| `${SKILL_DIR}/scripts/review_server.py` | Serve writable HTML review draft and apply comments back to `main_content.md` |
 | `${SKILL_DIR}/scripts/svg_quality_checker.py` | SVG quality check |
 | `${SKILL_DIR}/scripts/total_md_split.py` | Speaker notes splitting |
 | `${SKILL_DIR}/scripts/finalize_svg.py` | SVG post-processing (unified entry) |
 | `${SKILL_DIR}/scripts/svg_to_pptx.py` | Export to PPTX |
 
 For complete tool documentation, see `${SKILL_DIR}/scripts/README.md`.
+
+## Default Deliverables
+
+By default, `ppt-master` should leave the project in a state that is easy for humans to review and easy for the `PowerPoint` skill to consume:
+
+- `<project_path>/main_content.md` — editable skeleton outline and primary human content source
+- `<project_path>/design_spec.md` — visual and narrative specification
+- `<project_path>/style_sheet.md` — fonts, colors, size minimums, component rules
+- `<project_path>/asset_manifest.md` — per-slide asset mapping
+- `<project_path>/notes/total.md` — speaker notes
+- `<project_path>/svg_output/` — raw visual draft pages
+- `<project_path>/preview/index.html` — preferred fast review surface
+
+Only create `<project_path>/exports/*.pptx` from this skill when the user explicitly asks for direct export or the `PowerPoint` skill is unavailable.
 
 ## Template Index
 
@@ -197,7 +216,7 @@ python3 ${SKILL_DIR}/scripts/analyze_images.py <project_path>/images
 ## ✅ Strategist Phase Complete
 - [x] Eight Confirmations completed (user confirmed)
 - [x] Design Specification & Content Outline generated
-- [ ] **Next**: Auto-proceed to [Image_Generator / Executor] phase
+- [ ] **Next**: Auto-proceed to [Image_Generator / Skeleton Executor] phase
 ```
 
 ---
@@ -210,9 +229,12 @@ python3 ${SKILL_DIR}/scripts/analyze_images.py <project_path>/images
 
 Read `references/image-generator.md`
 
+> **Codex-first execution rule**: In Codex sessions, use the built-in `image_gen` tool as the default image generation path. Use `${SKILL_DIR}/scripts/image_gen.py` only as a fallback when the user explicitly wants local/provider-controlled generation, when batch filesystem output is required, or when the built-in tool is unavailable.
+
 1. Extract all images with status "pending generation" from the design spec
 2. Generate prompt document → `<project_path>/images/image_prompts.md`
-3. Generate images (CLI tool recommended):
+3. Generate images with the Codex `image_gen` tool and materialize them into `<project_path>/images/` using the filenames from the resource list
+4. If direct materialization into `<project_path>/images/` is required and the built-in tool cannot provide it, fall back to:
    ```bash
    python3 ${SKILL_DIR}/scripts/image_gen.py "prompt" --aspect_ratio 16:9 --image_size 1K -o <project_path>/images
    ```
@@ -226,7 +248,7 @@ Read `references/image-generator.md`
 
 ---
 
-### Step 6: Executor Phase
+### Step 6: Skeleton Executor Phase
 
 🚧 **GATE**: Step 4 (and Step 5 if triggered) complete; all prerequisite deliverables are ready.
 
@@ -245,44 +267,109 @@ Read references/executor-consultant-top.md # Top consulting style (MBB level)
 > ⚠️ **Main-agent only rule**: SVG generation in Step 6 MUST remain with the current main agent because page design depends on full upstream context (source content, design spec, template mapping, image decisions, and cross-page consistency). Do NOT delegate any slide SVG generation to sub-agents.
 > ⚠️ **Generation rhythm rule**: After confirming the global design parameters, the Executor MUST generate pages sequentially, one page at a time, while staying in the same continuous main-agent context. Do NOT split Step 6 into grouped page batches such as 5 pages per batch.
 
-**Visual Construction Phase**:
+**Visual Draft Construction Phase**:
 - Generate SVG pages sequentially, one page at a time, in one continuous pass → `<project_path>/svg_output/`
 
-**Logic Construction Phase**:
+**Draft Packaging Phase**:
+- Update or generate `<project_path>/main_content.md`
+- Generate `<project_path>/style_sheet.md` and `<project_path>/asset_manifest.md`
+  - Recommended command: `python3 ${SKILL_DIR}/scripts/generate_skeleton_docs.py <project_path> --overwrite`
 - Generate speaker notes → `<project_path>/notes/total.md`
+- Build lightweight HTML review draft → `<project_path>/preview/index.html`
+  - Recommended command: `python3 ${SKILL_DIR}/scripts/build_preview_html.py <project_path> --source output`
+- Start writable review surface when comments need to update files directly
+  - Recommended command: `python3 ${SKILL_DIR}/scripts/review_server.py <project_path> --source output`
+- Only generate `preview/draft.pdf` when the user explicitly asks for PDF review
 
-**✅ Checkpoint — Confirm all SVGs and notes are fully generated. Proceed directly to Step 7 post-processing**:
+**✅ Checkpoint — Confirm the skeleton package is fully generated. Proceed to Step 7 human review**:
 ```markdown
-## ✅ Executor Phase Complete
+## ✅ Skeleton Executor Phase Complete
 - [x] All SVGs generated to svg_output/
-- [x] Speaker notes generated at notes/total.md
+- [x] Skeleton files generated (`main_content.md`, `style_sheet.md`, `asset_manifest.md`, `notes/`)
+- [x] HTML draft ready at preview/index.html
 ```
 
 ---
 
-### Step 7: Post-processing & Export
+### Step 7: Human Review Loop
 
-🚧 **GATE**: Step 6 complete; all SVGs generated to `svg_output/`; speaker notes `notes/total.md` generated.
+🚧 **GATE**: Step 6 complete; the skeleton package and HTML draft are available.
+
+⛔ **BLOCKING**: Present the draft and wait for human feedback. Iterate on the skeleton until the user confirms the structure is locked.
+
+Allowed iteration scope in this loop:
+
+- Page count
+- Page order
+- Per-page title
+- Per-page one-line takeaway
+- Body bullets
+- Asset selection
+- Style direction
+- Notes framing
+
+During this loop:
+
+- Prefer reviewing `preview/index.html`
+- Use `draft.pdf` only when the user explicitly prefers a static review file
+- Do not start final PowerPoint polishing until the user confirms the skeleton is stable
+
+**✅ Checkpoint — Human confirms the skeleton is locked for final production**:
+```markdown
+## ✅ Human Review Loop Complete
+- [x] Skeleton confirmed by user
+- [x] `main_content.md` and handoff files updated to match the confirmed structure
+- [ ] **Next**: Switch to the `PowerPoint` skill for final editable production
+```
+
+---
+
+### Step 8: PowerPoint Handoff
+
+🚧 **GATE**: Step 7 complete; the human has confirmed the skeleton, and handoff files are up to date.
+
+The final editable deck should now be produced by the `PowerPoint` skill, not by `ppt-master`.
+
+Required handoff inputs:
+
+- `<project_path>/main_content.md`
+- `<project_path>/design_spec.md`
+- `<project_path>/style_sheet.md`
+- `<project_path>/asset_manifest.md`
+- reference style deck(s)
+- confirmed image / video / screenshot assets
+
+Handoff rule:
+
+- `ppt-master` owns structure, direction, and review package
+- `PowerPoint` owns the final native editable `.pptx`
+- Once the project enters the `PowerPoint` phase, do not return to `ppt-master` for layout polish unless the content structure changes substantially
+
+---
+
+## Legacy Compatibility Mode
+
+Only use this path when the user explicitly asks `ppt-master` to export PPTX directly, or when the `PowerPoint` skill is unavailable.
+
+🚧 **GATE**: A completed SVG draft exists and the user explicitly wants direct export from `ppt-master`.
 
 > ⚠️ The following three sub-steps MUST be **executed individually one at a time**. Each command must complete and be confirmed successful before running the next.
 > ❌ **NEVER** put all three commands in a single code block or single shell invocation.
 
-**Step 7.1** — Split speaker notes:
+**Legacy Step 1** — Split speaker notes:
 ```bash
 python3 ${SKILL_DIR}/scripts/total_md_split.py <project_path>
 ```
 
-**Step 7.2** — SVG post-processing (icon embedding / image crop & embed / text flattening / rounded rect to path):
+**Legacy Step 2** — SVG post-processing (icon embedding / image crop & embed / text flattening / rounded rect to path):
 ```bash
 python3 ${SKILL_DIR}/scripts/finalize_svg.py <project_path>
 ```
 
-**Step 7.3** — Export PPTX (embeds speaker notes by default):
+**Legacy Step 3** — Export PPTX (embeds speaker notes by default):
 ```bash
 python3 ${SKILL_DIR}/scripts/svg_to_pptx.py <project_path> -s final
 # Output: exports/<project_name>_<timestamp>.pptx + exports/<project_name>_<timestamp>_svg.pptx
-# Use --only native  to skip SVG reference version
-# Use --only legacy  to only generate SVG image version
 ```
 
 > ❌ **NEVER** use `cp` as a substitute for `finalize_svg.py` — it performs multiple critical processing steps
@@ -316,6 +403,8 @@ Before switching roles, you **MUST first read** the corresponding reference file
 
 ## Notes
 
-- Do NOT add extra flags like `--only` to the post-processing commands — run them as-is
-- Local preview: `python3 -m http.server -d <project_path>/svg_final 8000`
+- Default draft review surface: `python3 ${SKILL_DIR}/scripts/build_preview_html.py <project_path> --source output`
+- Standard handoff docs: `python3 ${SKILL_DIR}/scripts/generate_skeleton_docs.py <project_path> --overwrite`
+- Writable review server: `python3 ${SKILL_DIR}/scripts/review_server.py <project_path> --source output`
+- Legacy direct export remains available, but it is no longer the default completion path
 - **Troubleshooting**: If the user encounters issues during generation (layout overflow, export errors, blank images, etc.), recommend checking `docs/faq.md` — it contains known solutions sourced from real user reports and is continuously updated

@@ -2,9 +2,16 @@
 
 Image tools cover prompt-based generation, image inspection, and Gemini watermark removal.
 
+> In Codex sessions, prefer the built-in `image_gen` tool for AI image creation. This document describes the local CLI fallback and the supporting image utilities that still matter for the project workflow.
+
 ## `image_gen.py`
 
-Unified image generation entry point.
+Unified local fallback image generation entry point.
+
+Use this CLI when you specifically need:
+- Files written directly to the local filesystem in one command
+- Provider/API-key control outside the Codex tool runtime
+- Batch or script-driven generation that should not depend on interactive tool calls
 
 ```bash
 python3 scripts/image_gen.py "A modern futuristic workspace"
@@ -65,6 +72,7 @@ Recommendation:
 - Default to the Core tier for routine PPT work
 - Use Extended only when you need a specific model style
 - Treat Experimental backends as opt-in
+- In Codex sessions, treat this CLI as fallback; prefer the built-in `image_gen` tool first
 
 Example `.env` for MiniMax image backend:
 

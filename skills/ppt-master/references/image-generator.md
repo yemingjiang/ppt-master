@@ -6,6 +6,8 @@
 
 Receive the "Image Resource List" from the Design Specification & Content Outline output by the Strategist, create optimized prompts for each image pending generation, generate images via AI tools, and save them to the project's `images/` directory.
 
+> **Codex-first rule**: When this workflow runs inside Codex, use the built-in `image_gen` tool as the default generation path. Treat `scripts/image_gen.py` as a fallback for local/provider-controlled or batch filesystem workflows only.
+
 **Trigger condition**: When AI image generation is needed (standalone use or invoked within pipeline)
 
 | Mode | Trigger | Description |
@@ -34,7 +36,7 @@ Receive the "Image Resource List" from the Design Specification & Content Outlin
 |------------|-------------------|--------------|
 | Prompt document | `project/images/image_prompts.md` | **Must** be saved using file write tool — cannot just be output in conversation |
 | Optimized prompts | Individual prompt per image | Directly usable with AI image generation tools; doubles as alt text |
-| Image files | `project/images/` directory | Named per the resource list filenames |
+| Image files | `project/images/` directory | Named per the resource list filenames; when using Codex `image_gen`, export/save the generated bitmap into this directory before proceeding |
 | Updated list | Status changes | "Pending" → "Generated" |
 
 ---
@@ -247,7 +249,17 @@ For each image with "Pending" status:
 
 > Prerequisite: Section 4.2 must be complete; `images/image_prompts.md` must exist
 
-#### Method 1: Unified CLI Tool (Recommended)
+#### Method 1: Codex `image_gen` Tool (Preferred in Codex)
+
+Use the built-in `image_gen` tool to generate each pending image from the optimized prompt.
+
+Rules:
+- Generate one image at a time; verify the result before moving to the next image
+- Use the filename from the Image Resource List as the saved/exported name in `project/images/`
+- Keep the deck's shared style anchor consistent across all image prompts
+- If the built-in tool cannot directly materialize the file into `project/images/`, export/save it there before proceeding
+
+#### Method 2: Unified Local CLI Tool (Fallback)
 
 ```bash
 python3 scripts/image_gen.py "your prompt" \
@@ -300,18 +312,18 @@ Precedence:
 - Recommend 2-5 second intervals between images to avoid concurrency failures
 - If failure/no output occurs, halt the queue, check `IMAGE_BACKEND`, provider-specific credentials, and the output directory, then resume
 
-#### Method 2: Auto-generation
+#### Method 3: Auto-generation
 
 Directly call image generation API, download and save to `project/images/` directory.
 
-#### Method 3: Gemini Web Interface
+#### Method 4: Gemini Web Interface
 
 1. Generate images in [Gemini](https://gemini.google.com/)
 2. Select **Download full size** for high-resolution version
 3. Remove watermark: `python3 scripts/gemini_watermark_remover.py <image_path>`
 4. Place processed images in `project/images/` directory
 
-#### Method 4: Manual Generation (Other AI Platforms)
+#### Method 5: Manual Generation (Other AI Platforms)
 
 Prompts are saved in `images/image_prompts.md`; inform the user of the file location. User generates on Midjourney, DALL-E, Stable Diffusion, etc. and places images in `project/images/` directory.
 
@@ -365,8 +377,8 @@ Abstract futuristic background with flowing digital waves...
 
 ## Usage Instructions
 
-1. Copy the "Prompt" above into an AI image generation tool
-2. Recommended platforms: Midjourney / DALL-E 3 / Gemini / Stable Diffusion
+1. In Codex sessions, use the built-in `image_gen` tool first
+2. If you generate outside Codex, copy the "Prompt" above into an AI image generation tool
 3. Rename generated images to the corresponding filenames
 4. Place in the `images/` directory
 ```
@@ -456,6 +468,7 @@ Diagnose the problem category and apply a targeted prompt fix:
 ### Image Readiness (at least one must be satisfied)
 
 - [ ] All images saved to `project/images/` directory
+- [ ] Or: User clearly informed to export/save Codex-generated images using the filenames from `image_prompts.md`
 - [ ] Or: User clearly informed to self-generate using `image_prompts.md`
 
 ### Pipeline Flow

@@ -2,13 +2,13 @@
 
 ## Core Mission
 
-As a top-tier AI presentation strategist, receive source documents, perform content analysis and design planning, and output the **Design Specification & Content Outline** (hereafter `design_spec`).
+As a top-tier AI presentation strategist, receive source documents, perform content analysis and design planning, and output the **Design Specification & Content Outline** (hereafter `design_spec`) that will drive a reviewable skeleton draft first and a final `PowerPoint` production pass later.
 
 ## Pipeline Context
 
 | Previous Step | Current | Next Step |
 |--------------|---------|-----------|
-| Project creation + Template option confirmed | **Strategist**: Eight Confirmations + Design Spec | Image_Generator or Executor |
+| Project creation + Template option confirmed | **Strategist**: Eight Confirmations + Design Spec | Image_Generator or Skeleton Executor |
 
 ---
 
@@ -50,7 +50,7 @@ The design_spec.md output **MUST** follow this template's structure exactly (Sec
 
 ⛔ **BLOCKING**: After completing the read above, provide professional recommendations for the following eight items, then **present them as a bundled package to the user and wait for explicit confirmation or modifications**.
 
-> **Execution discipline**: This is the last BLOCKING checkpoint in the pipeline (besides template selection). Once the user confirms, the AI must automatically complete the Design Specification & Content Outline and seamlessly proceed to subsequent image generation (if applicable), SVG generation, and post-processing — no additional questions or pauses in between.
+> **Execution discipline**: This is the last BLOCKING checkpoint in the default pipeline (besides template selection). Once the user confirms, the AI must automatically complete the Design Specification & Content Outline and seamlessly proceed to subsequent image generation (if applicable), SVG skeleton generation, draft packaging, and HTML preview generation — no additional questions or pauses in between.
 
 ### a. Canvas Format Confirmation
 
@@ -221,7 +221,7 @@ Core logic: The layout container's aspect ratio must closely match the image's o
 
 > **Multi-image slides**: When multiple images appear on one page, use the grid formulas in the "Multi-Image Layout" section of `references/image-layout-spec.md`.
 
-> **Pipeline handoff**: When C) AI generation is selected, after outputting the design spec, prompt the user to invoke Image_Generator. Once images are collected in `images/`, proceed to Executor.
+> **Pipeline handoff**: When C) AI generation is selected, after outputting the design spec, switch to Image_Generator and use the Codex `image_gen` tool by default. If local/provider-controlled generation is specifically required, use `scripts/image_gen.py` as fallback. Once images are collected in `images/`, proceed to Executor.
 
 ### Visualization Reference (Non-blocking — Strategist recommends, no user confirmation needed)
 
@@ -247,6 +247,23 @@ When content outline pages involve **data visualization or infographic-style str
 - File naming: Recommended to match SVG names (`01_cover.svg` → `notes/01_cover.md`), also compatible with `notes/slide01.md`
 - Fill in the Design Spec: total presentation duration, notes style (formal / conversational / interactive), presentation purpose (inform / persuade / inspire / instruct / report)
 - Split note files must NOT contain `#` heading lines (`notes/total.md` master document MUST use `#` heading lines)
+
+### PowerPoint Handoff Readiness (Default — must be satisfied)
+
+Because `ppt-master` now defaults to a skeleton-first workflow, the Design Specification must be explicit enough to support later handoff to the `PowerPoint` skill.
+
+Strategist must ensure the content outline is precise enough that downstream steps can generate:
+
+- `main_content.md` with stable page order, page titles, and one-line takeaways
+- `style_sheet.md` with concrete color, typography, and component rules
+- `asset_manifest.md` with per-page asset purpose and status
+
+Before closing the strategist phase, confirm the following implicitly through the spec:
+
+- Each page has a clear primary message
+- The page count is stable enough for human review
+- The visual theme is concrete enough to become a reusable style sheet
+- The image resource list is detailed enough to become a final asset manifest
 
 ---
 
