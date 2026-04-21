@@ -1,4 +1,4 @@
-# PPT Master — AI generates natively editable PPTX from any document
+# PPT Master — AI builds review-first presentation skeletons and native-editable PPTX from any document
 
 [![Version](https://img.shields.io/badge/version-v2.3.0-blue.svg)](https://github.com/hugohe3/ppt-master/releases)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
@@ -19,9 +19,9 @@ English | [中文](./README_CN.md)
 
 ---
 
-Drop in a PDF, DOCX, URL, or Markdown — get back a **natively editable PowerPoint** with real shapes, real text boxes, and real charts. Not images. Click anything and edit it.
+Drop in a PDF, DOCX, URL, or Markdown — get back a **reviewable presentation skeleton first** (`main_content.md`, `design_spec.md`, `preview/index.html`), then a **native-editable PowerPoint** when the structure is approved.
 
-> **How it works** — PPT Master is a workflow (a "skill") that works inside AI IDEs like Claude Code, Cursor, VS Code + Copilot, or Codebuddy. You chat with the AI — "make a deck from this PDF" — and it follows the workflow to produce a real editable `.pptx` on your computer. No coding on your side; the IDE is just where the conversation happens.
+> **How it works** — PPT Master is a workflow (a "skill") that works inside AI IDEs like Claude Code, Cursor, VS Code + Copilot, or Codebuddy. You chat with the AI — "make a deck from this PDF" — and it first builds a reviewable skeleton package and HTML draft on your computer. Once that draft is approved, the repo-local native-editable rebuild produces the final `.pptx`. No coding on your side; the IDE is just where the conversation happens.
 >
 > **What you'll do**: install Python, install an AI IDE, drop in your material. First-time setup is about 15 minutes. Each deck takes ~10–20 minutes of back-and-forth with the AI.
 
@@ -31,7 +31,8 @@ There's no shortage of AI presentation tools — what's missing is one where the
 
 PPT Master is different:
 
-- **Real PowerPoint** — if a file can't be opened and edited in PowerPoint, it shouldn't be called a PPT. Every element PPT Master outputs is directly clickable and editable
+- **Review-first, editable-final** — instead of pretending one pass can do everything, PPT Master gets the structure reviewed first and only then rebuilds the final deck natively for manual editing
+- **Real PowerPoint where it matters** — the preferred final path is a native editable rebuild, not a screenshot export or a flattened web snapshot
 - **Transparent, predictable cost** — the tool is free and open source; the only cost is your own AI editor, and you know exactly what you're paying. As low as **$0.08/deck** with VS Code Copilot
 - **Data stays local** — your files shouldn't have to be uploaded to someone else's server just to make a presentation. Apart from AI model communication, the entire pipeline runs on your machine
 - **No platform lock-in** — your workflow shouldn't be held hostage by any single company. Works with Claude Code, Cursor, VS Code Copilot, and more; supports Claude, GPT, Gemini, Kimi, and other models
@@ -199,9 +200,13 @@ AI:  Sure. Let's confirm the design spec:
      ...
 ```
 
-The AI handles everything — content analysis, visual design, SVG generation, and PPTX export.
+The AI handles the full front half — content analysis, design spec, SVG skeleton generation, support files, and HTML review draft — and then hands the confirmed package to the native editable rebuild step for final `.pptx` production.
 
-> **Output:** Two timestamped files are saved to `exports/` — a native-shapes `.pptx` (directly editable) and an `_svg.pptx` snapshot for visual reference. Requires Office 2016+.
+> **Default output:** a reviewable skeleton package in the project directory — `main_content.md`, `design_spec.md`, `style_sheet.md`, `asset_manifest.md`, `notes/`, `svg_output/`, and `preview/index.html`.
+>
+> **Final editable output:** after review, hand the confirmed package to [`skills/ppt-master-native-editable/SKILL.md`](./skills/ppt-master-native-editable/SKILL.md) to rebuild the final native editable `.pptx`.
+>
+> **Legacy compatibility output:** `ppt-master` can still export `.pptx` directly through `svg_to_pptx.py`, but that is now an explicit compatibility path rather than the preferred editable-delivery route.
 
 > **AI lost context?** Ask it to read `skills/ppt-master/SKILL.md`.
 
@@ -234,6 +239,7 @@ Run `python3 skills/ppt-master/scripts/image_gen.py --list-backends` to see tier
 | 🆚 | [Why PPT Master](./docs/why-ppt-master.md) | How it compares to Gamma, Copilot, and other AI tools |
 | 🪟 | [Windows Installation](./docs/windows-installation.md) | Step-by-step setup guide for Windows users |
 | 📖 | [SKILL.md](./skills/ppt-master/SKILL.md) | Core workflow and rules |
+| 🧱 | [ppt-master-native-editable](./skills/ppt-master-native-editable/SKILL.md) | Final native editable rebuild after skeleton review |
 | 📐 | [Canvas Formats](./skills/ppt-master/references/canvas-formats.md) | PPT 16:9, Xiaohongshu, WeChat, and 10+ formats |
 | 🛠️ | [Scripts & Tools](./skills/ppt-master/scripts/README.md) | All scripts and commands |
 | 💼 | [Examples](./examples/README.md) | 15 projects, 229 pages |
@@ -291,4 +297,4 @@ Looking to collaborate, integrate PPT Master into your workflow, or just have qu
 
 Made with ❤️ by [Hugo He](https://www.hehugo.com/) — if this project helps you, please give it a ⭐ and consider [sponsoring](#support-this-project).
 
-[⬆ Back to Top](#ppt-master--ai-generates-natively-editable-pptx-from-any-document)
+[⬆ Back to Top](#ppt-master--ai-builds-review-first-presentation-skeletons-and-native-editable-pptx-from-any-document)

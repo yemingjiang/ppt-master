@@ -13,6 +13,7 @@ body:
       label: Problem area
       options:
         - SVG generation / layout
+        - Native editable rebuild / final PPT quality
         - PPTX export (svg_to_pptx.py)
         - Post-processing (finalize_svg.py / total_md_split.py)
         - Source conversion (PDF / DOCX / URL to Markdown)

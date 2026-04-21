@@ -18,9 +18,9 @@ Most AI presentation tools take one of three approaches, each with a hard limita
 - **HTML/CSS rendering** → Gamma, Tome, and similar tools look great in the browser, but HTML describes document flow while PowerPoint is a canvas. Exporting to PPTX inevitably breaks layouts and flattens elements.
 - **python-pptx / direct generation** → ChatGPT and similar tools build PPTX programmatically. Elements are editable, but AI lacks the training data to produce complex designs — the result is basic text boxes and bullet lists.
 
-PPT Master takes a fourth path — **AI generates SVG, then scripts convert SVG to DrawingML**. This works because SVG and DrawingML are fundamentally the same kind of thing — both are absolute-coordinate 2D vector formats where rectangles, paths, gradients, and shadows map one-to-one. The conversion is a dialect translation, not a format mismatch.
+PPT Master now takes a **review-first path**. AI first generates an SVG-based skeleton draft plus a browser review surface, then the approved structure is rebuilt into a native editable PowerPoint. The older **SVG → DrawingML** converter remains in the repo as a compatibility export path, not the preferred final-editable route.
 
-In the exported PPTX, every shape, text box, gradient, and shadow is a native PowerPoint object. Click anything, edit it — just like you built it by hand.
+That works because SVG and DrawingML are fundamentally the same kind of thing — both are absolute-coordinate 2D vector formats where rectangles, paths, gradients, and shadows map one-to-one. SVG is still the best drafting language for AI and browser review, while the final editable rebuild turns meaningful content back into native PowerPoint objects you can click and edit.
 
 > See [Technical Design](./technical-design.md) for the full rationale.
 

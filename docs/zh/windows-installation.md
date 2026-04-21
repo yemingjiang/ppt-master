@@ -79,7 +79,7 @@ python -c "import pptx; import fitz; print('All core dependencies OK')"
 请创建一个 3 页测试 PPT，封面 + 内容页 + 封底，主题"Hello World"
 ```
 
-`exports/` 下出现 `.pptx` 且能在 PowerPoint 中打开 → **搞定了。**
+如果已经生成可审稿骨架包和 `preview/index.html`，说明主流程已经跑通；如果你继续进入 native editable 重建，并且 `exports/` 下出现能在 PowerPoint 中打开的 `.pptx`，就说明完整端到端流程也跑通了。
 
 ---
 

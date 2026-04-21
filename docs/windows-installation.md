@@ -76,7 +76,7 @@ Open your AI editor (Cursor, VS Code + Copilot, etc.), open the `ppt-master` fol
 Please create a simple 3-page test PPT with a cover, one content page, and a closing page. Topic: "Hello World".
 ```
 
-If a `.pptx` file appears in `exports/` that opens in PowerPoint — **you're done.**
+If you get a reviewed skeleton package with `preview/index.html`, the workflow is already working. If you also continue into the native editable rebuild and a `.pptx` appears in `exports/` that opens in PowerPoint, the full end-to-end flow is working.
 
 ---
 

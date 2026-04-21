@@ -1,4 +1,4 @@
-# PPT Master — AI 生成原生可编辑 PPTX，支持任意文档输入
+# PPT Master — AI 先生成可审稿骨架，再生成原生可编辑 PPTX
 
 [![Version](https://img.shields.io/badge/version-v2.3.0-blue.svg)](https://github.com/hugohe3/ppt-master/releases)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
@@ -19,9 +19,9 @@
 
 ---
 
-丢进一份 PDF、DOCX、网址或 Markdown，拿回一份**原生可编辑的 PowerPoint**——真正的形状、真正的文本框、真正的图表，不是图片。点击任何元素即可编辑。
+丢进一份 PDF、DOCX、网址或 Markdown，先拿回一份**可审稿的演示骨架**（`main_content.md`、`design_spec.md`、`preview/index.html`），结构确认后再生成**原生可编辑的 PowerPoint**。
 
-> **运作方式** —— PPT Master 是一套在 AI IDE（Claude Code / Cursor / VS Code + Copilot / Codebuddy 等）里运行的工作流（一个 "skill"）。你在 IDE 的对话框里跟 AI 说"用这份 PDF 做一份 PPT"，AI 按这套工作流在你本机生成一个真正可编辑的 `.pptx`。你不写任何代码——IDE 只是你和 AI 对话的地方。
+> **运作方式** —— PPT Master 是一套在 AI IDE（Claude Code / Cursor / VS Code + Copilot / Codebuddy 等）里运行的工作流（一个 "skill"）。你在 IDE 的对话框里跟 AI 说"用这份 PDF 做一份 PPT"，AI 会先在你本机生成可审稿骨架和 HTML 草稿；结构确认后，再通过 repo 内的 native-editable 重建步骤产出最终 `.pptx`。你不写任何代码——IDE 只是你和 AI 对话的地方。
 >
 > **你要做的**：装 Python、装一个 AI IDE、把资料放进来。第一次配置约 15 分钟；之后每做一份 PPT 大约 10–20 分钟的聊天。
 
@@ -31,7 +31,8 @@
 
 PPT Master 不一样：
 
-- **真正的 PPT** — 如果一个文件在 PowerPoint 里打不开、不能编辑，它就不应该被叫做 PPT。PPT Master 输出的每个元素都能直接点击修改
+- **先审结构，再出成品** — 不假设 AI 一次就能完成所有细修，而是先把结构、结论、素材审清楚，再生成最终可编辑成品
+- **真正的 PPT** — 推荐的最终交付路径是 native editable 重建，而不是截图式导出或网页快照
 - **成本透明可控** — 工具免费开源，唯一成本是你自己的 AI 编辑器，花了多少钱你清清楚楚。VS Code Copilot 下最低 **$0.08/份**
 - **数据不出本地** — 你的文件不应该为了做一份 PPT 就被上传到别人的服务器。除与 AI 模型的对话外，全流程在你的电脑上完成
 - **不锁定平台** — 你的工作流不应该被任何一家公司绑架。Claude Code、Cursor、VS Code Copilot 等均可驱动；Claude、GPT、Gemini、Kimi 等模型均可使用
@@ -203,9 +204,13 @@ AI：好的，先确认设计规范：
    ...
 ```
 
-AI 全程处理——内容分析、视觉设计、SVG 生成、PPTX 导出。
+AI 先完成前半段——内容分析、设计规范、SVG 骨架、配套 handoff 文件和 HTML 审稿页；骨架确认后，再进入 native editable 重建阶段产出最终 `.pptx`。
 
-> **输出说明：** 两个带时间戳的文件保存至 `exports/` — 原生形状版 `.pptx`（可直接编辑）和 `_svg.pptx` 快照版（视觉参考备份）。需要 Office 2016+。
+> **默认输出：** 项目目录中的可审稿骨架包——`main_content.md`、`design_spec.md`、`style_sheet.md`、`asset_manifest.md`、`notes/`、`svg_output/` 和 `preview/index.html`。
+>
+> **最终可编辑输出：** 审稿确认后，交给 [`skills/ppt-master-native-editable/SKILL.md`](./skills/ppt-master-native-editable/SKILL.md) 重建最终原生可编辑 `.pptx`。
+>
+> **兼容导出：** `ppt-master` 仍可通过 `svg_to_pptx.py` 直接导出 `.pptx`，但这已经是显式兼容路径，不再是默认的可编辑交付方式。
 
 > **AI 迷失上下文？** 让它先读 `skills/ppt-master/SKILL.md`。
 
@@ -238,6 +243,7 @@ GEMINI_MODEL=gemini-3.1-flash-image-preview
 | 🆚 | [为什么选 PPT Master](./docs/zh/why-ppt-master.md) | 与 Gamma、Copilot 等工具的对比 |
 | 🪟 | [Windows 安装指南](./docs/zh/windows-installation.md) | Windows 用户手把手安装教程 |
 | 📖 | [SKILL.md](./skills/ppt-master/SKILL.md) | 核心流程与规则 |
+| 🧱 | [ppt-master-native-editable](./skills/ppt-master-native-editable/SKILL.md) | 骨架审稿后的最终原生可编辑重建 |
 | 📐 | [画布格式](./skills/ppt-master/references/canvas-formats.md) | PPT 16:9、小红书、朋友圈等 10+ 种格式 |
 | 🛠️ | [脚本与工具](./skills/ppt-master/scripts/README.md) | 所有脚本和命令 |
 | 💼 | [示例](./examples/README.md) | 15 个项目，229 页 |
@@ -295,4 +301,4 @@ GEMINI_MODEL=gemini-3.1-flash-image-preview
 
 Made with ❤️ by [何雨果 Hugo He](https://www.hehugo.com/) — 如果这个项目对你有帮助，请给一个 ⭐，也欢迎[赞助支持](#支持这个项目)。
 
-[⬆ 回到顶部](#ppt-master--ai-生成原生可编辑-pptx支持任意文档输入)
+[⬆ 回到顶部](#ppt-master--ai-先生成可审稿骨架再生成原生可编辑-pptx)

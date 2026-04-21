@@ -34,7 +34,15 @@ Then rerun:
 python3 scripts/total_md_split.py <project_path>
 ```
 
-## PPT Export Quality Issues
+## Final Deck Quality Issues
+
+If the issue appears in the preferred native editable final deck:
+
+1. Check whether the reviewed skeleton in `preview/index.html` is already correct.
+2. If the skeleton is correct, fix the downstream native editable rebuild rather than changing unrelated SVG pages.
+3. Pay special attention to wrap-sensitive and alignment-sensitive blocks such as KPI cards, metric badges, comparison numbers, and footer/page-number chrome.
+
+## Legacy PPT Export Quality Issues
 
 Preferred sequence:
 

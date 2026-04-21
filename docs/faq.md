@@ -20,7 +20,7 @@ Yes. Besides the standard **16:9** and **4:3** presentation formats, PPT Master 
 | WeChat Article Header | WeChat article cover images |
 | A4 Print | Print posters, flyers |
 
-Just specify the format when starting a project (e.g., `--format xhs`). The output is still a `.pptx` file containing native shapes.
+Just specify the format when starting a project (e.g., `--format xhs`). The reviewed skeleton package and the downstream final `.pptx` will both follow that canvas format.
 
 ## Q: What AI tools work with PPT Master?
 
@@ -32,7 +32,13 @@ Yes. PPT Master includes a built-in image generation script that supports multip
 
 ## Q: Can I edit the generated presentations?
 
-Yes! Both files are saved to `exports/` with a timestamp. The native `.pptx` produces **native PowerPoint shapes** — all text, graphics, and colors are directly editable without any conversion. The `_svg.pptx` is an SVG snapshot kept as a visual reference backup. Requires **Office 2016** or later.
+Yes — but the workflow now has two stages.
+
+- **Default stage:** `ppt-master` first creates a reviewable skeleton package (`main_content.md`, `design_spec.md`, `style_sheet.md`, `asset_manifest.md`, `notes/`, `svg_output/`, `preview/index.html`)
+- **Final editable stage:** once the skeleton is approved, `ppt-master-native-editable` rebuilds the final `.pptx` with native PowerPoint text and shapes
+- **Compatibility stage:** `svg_to_pptx.py` can still export `.pptx` directly, but that is now a legacy path, not the preferred editable-delivery route
+
+When the final native editable `.pptx` is produced, meaningful text, graphics, and layout components are directly editable in PowerPoint. Office 2016+ is still recommended.
 
 ## Q: What's the difference between the three Executors?
 
@@ -55,7 +61,7 @@ For a complete presentation, **$0.08–$0.24 USD** is not expensive at all.
 
 ## Q: Are the charts in the generated PPTX editable?
 
-Charts are rendered as **custom-designed SVG graphics** converted to native PowerPoint shapes — not Excel-driven chart objects. This gives them a polished, high-fidelity appearance that often looks better than default PowerPoint charts. However, the underlying data is not editable via PowerPoint's chart editor. If you need a live, data-driven chart (e.g., one you can update by editing a spreadsheet), you will need to manually replace it with a native PowerPoint chart after export.
+Charts are usually authored as **custom-designed visual modules** rather than Excel-driven chart objects. In the legacy export path they may be converted from SVG; in the preferred final workflow they may be rebuilt natively. Either way, the goal is a polished visual result, not a spreadsheet-bound PowerPoint chart. If you need a live, data-driven chart that updates from spreadsheet data, you should replace it manually with a native PowerPoint chart after delivery.
 
 ## Q: Which AI model works best?
 
@@ -83,7 +89,7 @@ If generation feels slow, check your model's token throughput. The bottleneck is
 
 ## Q: Can I preview or fix individual pages before the full export?
 
-Yes. You can **interrupt the workflow at any time** — after the first few pages are generated, review them and give feedback. The AI can regenerate specific pages based on your comments. You don't need to wait until the end to make corrections.
+Yes. You can **interrupt the workflow at any time** — after the first few pages are generated, review them and give feedback. The preferred review surface is `preview/index.html`, where you can inspect page order, titles, takeaways, notes, and assets before final rebuild. The AI can regenerate specific pages based on your comments. You don't need to wait until the end to make corrections.
 
 For post-generation fixes, simply tell the AI: "Page 3 has a layout issue — the title overlaps the chart" and it will fix that specific SVG.
 

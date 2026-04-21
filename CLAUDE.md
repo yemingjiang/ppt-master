@@ -4,9 +4,11 @@ This file provides a project overview for Claude Code. Before executing PPT gene
 
 ## Project Overview
 
-PPT Master is an AI-driven presentation generation system. Through multi-role collaboration (Strategist → Image_Generator → Executor), it converts source documents (PDF/DOCX/URL/Markdown) into natively editable PPTX with real PowerPoint shapes (DrawingML).
+PPT Master is an AI-driven presentation workflow. Through multi-role collaboration (Strategist → Image_Generator → Skeleton Executor), it converts source documents (PDF/DOCX/URL/Markdown) into a reviewable skeleton package first, then hands confirmed projects to a native editable rebuild step for final `.pptx` production.
 
-**Core Pipeline**: `Source Document → Create Project → Template Option → Strategist Eight Confirmations → [Image_Generator] → Executor → Post-processing → Export PPTX`
+**Core Pipeline**: `Source Document → Create Project → Template Option → Strategist Eight Confirmations → [Image_Generator] → Skeleton Executor → main_content/design_spec/style_sheet/asset_manifest/notes/svg_output/preview → Human Review Loop → ppt-master-native-editable`
+
+**Legacy Compatibility Pipeline**: `Source Document → ... → Executor → total_md_split.py → finalize_svg.py → svg_to_pptx.py`
 
 ## Common Commands
 
@@ -20,7 +22,7 @@ node skills/ppt-master/scripts/source_to_md/web_to_md.cjs <URL>       # fallback
 
 # Project management
 python3 skills/ppt-master/scripts/project_manager.py init <project_name> --format ppt169
-python3 skills/ppt-master/scripts/project_manager.py import-sources <project_path> <source_files_or_URLs...> --move
+python3 skills/ppt-master/scripts/project_manager.py import-sources <project_path> <source_files_or_URLs...> --copy
 python3 skills/ppt-master/scripts/project_manager.py validate <project_path>
 
 # Image tools
@@ -30,7 +32,11 @@ python3 skills/ppt-master/scripts/image_gen.py "prompt" --aspect_ratio 16:9 --im
 # SVG quality check
 python3 skills/ppt-master/scripts/svg_quality_checker.py <project_path>
 
-# Post-processing pipeline (MUST run sequentially, one at a time — NEVER batch)
+# Skeleton review package
+python3 skills/ppt-master/scripts/generate_skeleton_docs.py <project_path> --overwrite
+python3 skills/ppt-master/scripts/build_preview_html.py <project_path> --source output
+
+# Legacy direct-export pipeline (compatibility path only; MUST run sequentially, one at a time — NEVER batch)
 python3 skills/ppt-master/scripts/total_md_split.py <project_path>
 # ✅ Confirm no errors before running the next command
 python3 skills/ppt-master/scripts/finalize_svg.py <project_path>
@@ -43,6 +49,7 @@ python3 skills/ppt-master/scripts/svg_to_pptx.py <project_path> -s final
 ## Architecture
 
 - `skills/ppt-master/references/` — AI role definitions and technical specifications
+- `skills/ppt-master-native-editable/SKILL.md` — Final native editable rebuild after skeleton review
 - `skills/ppt-master/scripts/` — Runnable tool scripts
 - `skills/ppt-master/scripts/docs/` — Topic-focused script docs
 - `skills/ppt-master/templates/` — Layout templates, chart templates, 640+ vector icons
@@ -75,9 +82,10 @@ python3 skills/ppt-master/scripts/svg_to_pptx.py <project_path> -s final
 | WeChat Moments | `0 0 1080 1080` |
 | Story | `0 0 1080 1920` |
 
-## Post-processing Notes
+## Legacy Direct-Export Notes
 
 - **NEVER** use `cp` as a substitute for `finalize_svg.py`
 - **NEVER** export directly from `svg_output/` — MUST export from `svg_final/` (use `-s final`)
 - Do NOT add extra flags like `--only` to the post-processing commands
 - **NEVER** run the three post-processing steps in a single code block or single shell invocation
+- For editable final delivery, prefer the default skeleton review flow plus `skills/ppt-master-native-editable/SKILL.md`

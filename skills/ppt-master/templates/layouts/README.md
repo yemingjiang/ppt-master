@@ -172,7 +172,9 @@ Templates use `{{PLACEHOLDER}}` format to mark replaceable content:
 | `{{PAGE_TITLE}}` | Page title | Content |
 | `{{CONTENT_AREA}}` | Content area placeholder | Content |
 | `{{PAGE_NUM}}` | Page number | Content, Ending |
-| `{{SOURCE}}` | Data source | Content footer |
+| `{{SOURCE}}` | Optional data/source footer | Content footer (legacy / opt-in) |
+
+> **Current workflow note**: visible `Source: ...` footers are no longer recommended by default. For most executive / business decks, provenance should live in `asset_manifest.md`, `design_spec.md`, `sources/`, or speaker notes instead of visible slide chrome. Keep `{{SOURCE}}` only when the user explicitly wants citations or compliance footnotes on-slide.
 
 ### Table of Contents
 

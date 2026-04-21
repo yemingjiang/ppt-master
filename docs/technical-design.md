@@ -6,7 +6,7 @@
 
 ## Design Philosophy — AI as Your Designer, Not Your Finisher
 
-The generated PPTX is a **design draft**, not a finished product. Think of it like an architect's rendering: the AI handles visual design, layout, and content structure — delivering a high-quality starting point. For truly polished results, **expect to do your own finishing work** in PowerPoint: swapping shapes, refining charts, adjusting colors, replacing placeholder graphics with native objects. The goal is to eliminate 90% of the blank-page work, not to replace human judgment in the final mile. Don't expect one AI pass to do everything — that's not how good presentations are made.
+The reviewed skeleton package and rebuilt PPTX are still **design deliverables**, not magic one-click perfection. Think of them like an architect's rendering plus a build-ready model: the AI handles visual direction, layout structure, and most of the assembly work, but the last-mile judgment still belongs to the human. The goal is to eliminate 90% of blank-page work, not to replace human taste in the final mile.
 
 **A tool's ceiling is your ceiling.** PPT Master amplifies the skills you already have — if you have a strong sense of design and content, it helps you execute faster. If you don't know what a great presentation looks like, the tool won't know either. The output quality is ultimately a reflection of your own taste and judgment.
 
@@ -29,39 +29,54 @@ User Input (PDF/DOCX/URL/Markdown)
     ↓
 [Image_Generator] (When AI generation is selected)
     ↓
-[Executor] - Two-Phase Generation
-    ├── Visual Construction Phase: Generate all SVG pages → svg_output/
-    └── Logic Construction Phase: Generate complete speaker notes → notes/total.md
+[Skeleton Executor] - Review-first draft generation
+    ├── SVG draft pages → svg_output/
+    ├── main_content.md / design_spec.md / style_sheet.md / asset_manifest.md
+    ├── Speaker notes → notes/total.md
+    └── HTML review surface → preview/index.html
     ↓
-[Post-processing] → total_md_split.py (split notes) → finalize_svg.py → svg_to_pptx.py
+[Human Review Loop] → review structure, takeaways, notes, and assets in preview/index.html
     ↓
-Output: Two timestamped files saved to exports/:
-    ├── presentation_<timestamp>.pptx      ← Native shapes (DrawingML) — recommended for editing & delivery
-    └── presentation_<timestamp>_svg.pptx ← SVG snapshot — pixel-perfect visual reference backup
+[Native Editable Rebuild] → repo-local ppt-master-native-editable
+    ↓
+Output: final editable .pptx rebuilt with native PowerPoint text, shapes, tables, and media
+
+Legacy compatibility branch (explicit request only):
+    Skeleton draft / svg_output/
+        ↓
+    total_md_split.py → finalize_svg.py → svg_to_pptx.py
+        ↓
+    exports/<timestamp>.pptx + exports/<timestamp>_svg.pptx
 ```
 
 ---
 
 ## Technical Pipeline
 
-**The pipeline: AI generates SVG → post-processing converts to DrawingML (PPTX).**
+**Default pipeline: AI generates a reviewable SVG-based skeleton first, then a separate native-editable rebuild produces the final PPTX.**
 
-The full flow breaks into three stages:
+The full flow now breaks into four stages:
 
 **Stage 1 — Content Understanding & Design Planning**
 Source documents (PDF/DOCX/URL/Markdown) are converted to structured text. The Strategist role analyzes the content, plans the slide structure, and confirms the visual style, producing a complete design specification.
 
-**Stage 2 — AI Visual Generation**
-The Executor role generates each slide as an SVG file. The output of this stage is a **design draft**, not a finished product.
+**Stage 2 — Review Skeleton Generation**
+The Executor role generates each slide as an SVG draft plus the synchronized support files (`main_content.md`, `style_sheet.md`, `asset_manifest.md`, `notes/total.md`). The output of this stage is a **review package**, not a finished deck.
 
-**Stage 3 — Engineering Conversion**
-Post-processing scripts convert SVG to DrawingML. Every shape becomes a real native PowerPoint object — clickable, editable, recolorable — not an embedded image.
+**Stage 3 — Human Review Loop**
+The draft is reviewed through `preview/index.html`, where structure, takeaways, assets, and notes are adjusted before any final PowerPoint build is attempted.
+
+**Stage 4 — Native Editable Rebuild**
+Once the skeleton is approved, the downstream `ppt-master-native-editable` skill rebuilds the final `.pptx` with native PowerPoint objects. This is the preferred editable-delivery path.
+
+**Legacy branch — Engineering Conversion**
+`svg_to_pptx.py` still exists as a compatibility export path, but it is no longer the default for final editable delivery.
 
 ---
 
 ## Why SVG?
 
-SVG sits at the center of this pipeline. The choice was made by elimination.
+SVG still sits at the center of the drafting pipeline. The choice was made by elimination.
 
 **Direct DrawingML generation** seems most direct — skip the intermediate format, have AI output PowerPoint's underlying XML. But DrawingML is extremely verbose; a simple rounded rectangle requires dozens of lines of nested XML. AI has far less training data for it than SVG, output is unreliable, and debugging is nearly impossible by eye.
 
@@ -84,4 +99,4 @@ SVG wins because it shares the same world view as DrawingML: both are absolute-c
 
 The conversion is a translation between two dialects of the same idea — not a format mismatch.
 
-SVG is also the only format that simultaneously satisfies every role in the pipeline: **AI can reliably generate it, humans can preview and debug it in any browser, and scripts can precisely convert it** — all before a single line of DrawingML is written.
+SVG is also the only format that simultaneously satisfies every role in the drafting pipeline: **AI can reliably generate it, humans can preview and debug it in any browser, and scripts can precisely convert or reinterpret it**. That is why SVG remains the review-stage source of visual intent even though the preferred final editable delivery path is now a downstream native rebuild rather than direct conversion.
