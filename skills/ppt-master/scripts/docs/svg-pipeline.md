@@ -1,6 +1,6 @@
 # SVG Pipeline Tools
 
-> This is the **legacy compatibility export** path. Use it only when the user explicitly wants `ppt-master` itself to export PPTX directly, or when the downstream `PowerPoint` skill is unavailable. For final editable decks, prefer the default skeleton review flow followed by native rebuild in the `PowerPoint` skill.
+> This is the **legacy compatibility export** path. Use it only when the user explicitly wants `ppt-master` itself to export PPTX directly, or when the downstream native editable skill is unavailable. For final editable decks, prefer the default skeleton review flow followed by native rebuild in `ppt-master-native-editable`.
 
 These tools cover post-processing, SVG validation, speaker notes, and PPTX export.
 
@@ -50,7 +50,7 @@ Important:
 
 - Do not present this converter output as equivalent to a high-fidelity native editable PowerPoint rebuild
 - Direct SVG conversion may flatten structure or render differently from the browser review draft
-- If the user wants a final deck that remains broadly editable, stop after skeleton review and hand off to the `PowerPoint` skill instead
+- If the user wants a final deck that remains broadly editable, stop after skeleton review and hand off to `ppt-master-native-editable` instead
 
 Dependency:
 

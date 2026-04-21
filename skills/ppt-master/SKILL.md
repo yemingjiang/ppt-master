@@ -8,9 +8,9 @@ description: >
 
 # PPT Master Skill
 
-> Skeleton-first presentation workflow. Converts source documents into a reviewable presentation skeleton, fast HTML visual draft, and PowerPoint handoff package.
+> Skeleton-first presentation workflow. Converts source documents into a reviewable presentation skeleton, fast HTML visual draft, and native-editable handoff package.
 
-**Default Pipeline**: `Source Document → Create Project → Template Option → Strategist → [Image_Generator] → Skeleton Executor → Human Review Loop → Native Editable PowerPoint Handoff`
+**Default Pipeline**: `Source Document → Create Project → Template Option → Strategist → [Image_Generator] → Skeleton Executor → Human Review Loop → Native Editable Rebuild`
 
 **Legacy Compatibility Pipeline**: `Source Document → Create Project → Template Option → Strategist → [Image_Generator] → SVG Executor → Post-processing → Export`
 
@@ -86,14 +86,16 @@ description: >
 > Rules:
 >
 > - If the user asks for a **final PPT**, **editable PPT**, **可编辑**, **老板后续要改**, or equivalent, default to **Native Editable Handoff**.
-> - In **Native Editable Handoff**, `ppt-master` owns structure, content outline, style direction, review loop, and handoff files; the final native `.pptx` should be rebuilt by the `PowerPoint` skill using native PowerPoint text boxes, shapes, tables, and media placement.
+> - In **Native Editable Handoff**, `ppt-master` owns structure, content outline, style direction, review loop, and handoff files; the final native `.pptx` should be rebuilt by the repo-local `ppt-master-native-editable` skill (`${SKILL_DIR}/../ppt-master-native-editable/SKILL.md`) using native PowerPoint text boxes, shapes, tables, and media placement.
 > - `preview/index.html`, `svg_output/`, and `svg_final/` are **review and execution artifacts**, not proof that direct `svg_to_pptx.py` export will be both faithful and editable.
 > - **Cross-engine text-layout rule**: Browser SVG preview and native PowerPoint text layout use different font metrics and wrapping behavior. A page that looks correct in `preview/index.html` can still wrap, overlap, or orphan punctuation in the final native `.pptx`.
+> - **Authored page-number rule**: If the reviewed skeleton includes page numbers or footer chrome, treat them as authored layout elements. The downstream native build should not rely on implicit PowerPoint slide-number placeholders unless the user explicitly asks for them.
 > - Direct SVG export may preserve some visual appearance, but it can also flatten structure, reduce editability, or render differently in PowerPoint. Never describe it as equivalent to a native editable final deck.
-> - Use **Legacy Direct Export** only when the user explicitly asks `ppt-master` itself to export PPTX directly, or when the `PowerPoint` skill is unavailable.
+> - Use **Legacy Direct Export** only when the user explicitly asks `ppt-master` itself to export PPTX directly, or when `ppt-master-native-editable` is unavailable.
 > - When using **Legacy Direct Export**, explicitly warn that the result is a converter-oriented compatibility export, not the preferred path for high-fidelity editable delivery.
 > - For **Native Editable Handoff**, repeated cards, timelines, labels, tables, and text-heavy blocks should be described in `design_spec.md` / `main_content.md` as native components that will be reconstructed downstream, while true screenshots, photos, and video thumbnails may remain media assets.
-> - For **Native Editable Handoff**, the downstream `PowerPoint` pass should render PPT-native slide previews and compare them against the approved `preview/index.html` intent before final delivery. This QA pass should explicitly catch: unnecessary extra wraps, manual line breaks that no longer fit, title/body overlap, metric badge overflow, and single-character / punctuation orphan lines.
+> - For **Native Editable Handoff**, the downstream native editable pass should render PPT-native slide previews and compare them against the approved `preview/index.html` intent before final delivery. This QA pass should explicitly catch: unnecessary extra wraps, manual line breaks that no longer fit, title/body overlap, metric badge overflow, and single-character / punctuation orphan lines.
+> - **Alignment-sensitive component rule**: Large-number comparison cards (for example `~90` vs `21` with adjacent titles and one-line summaries) are especially likely to drift in native PPT. Handoff materials should treat them as alignment-sensitive composite modules, not as arbitrary text boxes.
 
 ## Main Pipeline Scripts
 
@@ -119,7 +121,7 @@ For complete tool documentation, see `${SKILL_DIR}/scripts/README.md`.
 
 ## Default Deliverables
 
-By default, `ppt-master` should leave the project in a state that is easy for humans to review and easy for the `PowerPoint` skill to consume:
+By default, `ppt-master` should leave the project in a state that is easy for humans to review and easy for the repo-local native-editable rebuild skill to consume:
 
 - `<project_path>/main_content.md` — editable skeleton outline and primary human content source
 - `<project_path>/design_spec.md` — visual and narrative specification
@@ -131,7 +133,7 @@ By default, `ppt-master` should leave the project in a state that is easy for hu
 
 When delivering a reviewable draft in Codex desktop, the response should include a clickable absolute link to `<project_path>/preview/index.html`. Default to the static file preview workflow: users keep comments in the browser, use "复制全部批注", then paste that review back into Codex for updates.
 
-Only create `<project_path>/exports/*.pptx` from this skill when the user explicitly asks for direct export or the `PowerPoint` skill is unavailable.
+Only create `<project_path>/exports/*.pptx` from this skill when the user explicitly asks for direct export or `ppt-master-native-editable` is unavailable.
 
 ## Template Index
 
@@ -386,26 +388,37 @@ During this loop:
 ## ✅ Human Review Loop Complete
 - [x] Skeleton confirmed by user
 - [x] `main_content.md` and handoff files updated to match the confirmed structure
-- [ ] **Next**: Switch to the `PowerPoint` skill for final editable production
+- [ ] **Next**: Switch to `ppt-master-native-editable` for final editable production
 ```
 
 ---
 
-### Step 8: PowerPoint Handoff
+### Step 8: Native Editable Rebuild
 
 🚧 **GATE**: Step 7 complete; the human has confirmed the skeleton, and handoff files are up to date.
 
-The final editable deck should now be produced by the `PowerPoint` skill, not by `ppt-master`.
+The final editable deck should now be produced by the repo-local `ppt-master-native-editable` skill at:
+
+```text
+${SKILL_DIR}/../ppt-master-native-editable/SKILL.md
+```
+
+Transition rule:
+
+- This is an internal workflow transition, not a separate user-facing mode switch
+- If the user says "生成最终 PPT", "生成可编辑版", or equivalent after skeleton review, continue into this step automatically rather than asking the user to invoke another generic PPT skill manually
 
 Hard rules:
 
-- If the user cares about **editability**, **PowerPoint compatibility**, **future manual revision**, or **close-to-final management delivery**, stop at the confirmed skeleton + handoff package and switch to the `PowerPoint` skill.
+- If the user cares about **editability**, **PowerPoint compatibility**, **future manual revision**, or **close-to-final management delivery**, stop at the confirmed skeleton + handoff package and switch to `ppt-master-native-editable`.
 - Do **not** claim that `svg_to_pptx.py` is sufficient for a high-fidelity editable final deck.
-- The downstream `PowerPoint` production pass should rebuild meaningful content as native objects whenever possible: titles, bullets, cards, tables, timelines, labels, stage blocks, and page chrome.
+- The downstream native rebuild should recreate meaningful content as native objects whenever possible: titles, bullets, cards, tables, timelines, labels, stage blocks, and page chrome.
 - Use raster media only for true screenshots, photography, video covers, or evidence images that are not meant to be edited as layout primitives.
 - Treat `preview/index.html` as the target **structure and visual intent**, not as a guarantee of native PowerPoint text fitting.
 - Before final delivery, the downstream native pass should render slide previews from the actual PPT build and perform a text-layout QA pass against the approved review draft.
 - If the SVG preview is mostly correct but the final `.pptx` shows unwanted wraps or overlaps, fix the native builder's text boxes, widths, spacing, and font sizing first; do not assume the SVG skeleton itself is wrong.
+- If the reviewed deck uses explicit page numbers, footer labels, or other page chrome, the downstream native pass should author them deliberately and remove any accidental auto-generated slide-number placeholders that appear after export/import.
+- For large-number cards and KPI comparisons, the downstream native pass should QA not only wrapping but also **visual alignment**: big numerals should not appear to sag below adjacent titles or summaries.
 
 Required handoff inputs:
 
@@ -419,18 +432,18 @@ Required handoff inputs:
 Handoff rule:
 
 - `ppt-master` owns structure, direction, and review package
-- `PowerPoint` owns the final native editable `.pptx`
-- Once the project enters the `PowerPoint` phase, do not return to `ppt-master` for layout polish unless the content structure changes substantially
+- `ppt-master-native-editable` owns the final native editable `.pptx`
+- Once the project enters the native rebuild phase, do not return to `ppt-master` for layout polish unless the content structure changes substantially
 
 ---
 
 ## Legacy Compatibility Mode
 
-Only use this path when the user explicitly asks `ppt-master` to export PPTX directly, or when the `PowerPoint` skill is unavailable.
+Only use this path when the user explicitly asks `ppt-master` to export PPTX directly, or when `ppt-master-native-editable` is unavailable.
 
 🚧 **GATE**: A completed SVG draft exists and the user explicitly wants direct export from `ppt-master`.
 
-> ⚠️ **Legacy export warning**: This path is a converter-oriented compatibility export. It may flatten structure, reduce editability, or diverge from the browser SVG preview once opened in PowerPoint. If the user wants a final deck that remains broadly editable, use the `PowerPoint` handoff path instead.
+> ⚠️ **Legacy export warning**: This path is a converter-oriented compatibility export. It may flatten structure, reduce editability, or diverge from the browser SVG preview once opened in PowerPoint. If the user wants a final deck that remains broadly editable, use the `ppt-master-native-editable` handoff path instead.
 
 > ⚠️ The following three sub-steps MUST be **executed individually one at a time**. Each command must complete and be confirmed successful before running the next.
 > ❌ **NEVER** put all three commands in a single code block or single shell invocation.

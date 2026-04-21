@@ -32,8 +32,8 @@ python3 scripts/build_preview_html.py <project_path> --source output
 Use the workflow in one of these modes:
 
 - **Review Skeleton** — default; stop after the skeleton package and `preview/index.html`
-- **Native Editable Handoff** — default whenever the user wants a final editable `.pptx`; hand the confirmed skeleton package to the `PowerPoint` skill
-- **Legacy Direct Export** — only when the user explicitly asks `ppt-master` itself to export PPTX directly, or when the `PowerPoint` skill is unavailable
+- **Native Editable Handoff** — default whenever the user wants a final editable `.pptx`; hand the confirmed skeleton package to `ppt-master-native-editable`
+- **Legacy Direct Export** — only when the user explicitly asks `ppt-master` itself to export PPTX directly, or when the native editable skill is unavailable
 
 Important:
 
@@ -44,7 +44,7 @@ Important:
 
 Final polished deck:
 
-- By default, hand the confirmed skeleton package to the `PowerPoint` skill for native editable `.pptx` production
+- By default, hand the confirmed skeleton package to `ppt-master-native-editable` for native editable `.pptx` production
 - This downstream pass should rebuild meaningful text and recurring layout components as native PowerPoint objects
 - After native rebuild, render PPT-native slide previews and compare them against the approved review draft to catch wrap/overlap drift before delivery
 - Do not treat direct SVG conversion as the default final-editable path
@@ -68,7 +68,7 @@ python3 scripts/update_repo.py
 | Area | Primary scripts | Documentation |
 |------|-----------------|---------------|
 | Conversion | `source_to_md/pdf_to_md.py`, `source_to_md/doc_to_md.py`, `source_to_md/ppt_to_md.py`, `source_to_md/web_to_md.py`, `source_to_md/web_to_md.cjs` | [docs/conversion.md](./docs/conversion.md) |
-| Project management | `project_manager.py`, `batch_validate.py`, `generate_examples_index.py`, `error_helper.py`, `pptx_template_import.py` | [docs/project.md](./docs/project.md) |
+| Project management | `project_manager.py`, `batch_validate.py`, `generate_examples_index.py`, `error_helper.py`, `pptx_template_import.py`, `clean_pptx_placeholders.py` | [docs/project.md](./docs/project.md) |
 | Skeleton docs | `generate_skeleton_docs.py` | this README |
 | Draft preview | `build_preview_html.py` | this README |
 | SVG pipeline / legacy export | `finalize_svg.py`, `svg_to_pptx.py`, `total_md_split.py`, `svg_quality_checker.py` | [docs/svg-pipeline.md](./docs/svg-pipeline.md) |
@@ -107,6 +107,14 @@ Template source import:
 ```bash
 python3 scripts/pptx_template_import.py <template.pptx>
 python3 scripts/pptx_template_import.py <template.pptx> --manifest-only
+```
+
+PPTX cleanup:
+
+```bash
+python3 scripts/clean_pptx_placeholders.py exports/final_deck.pptx --in-place
+python3 scripts/clean_pptx_placeholders.py exports/final_deck.pptx -o exports/final_deck_cleaned.pptx
+python3 scripts/clean_pptx_placeholders.py exports/final_deck.pptx --in-place --dry-run
 ```
 
 Legacy post-processing and export:
@@ -148,7 +156,7 @@ python3 scripts/update_repo.py --skip-pip
 - Treat `preview/index.html` as the main review entry point. In Codex desktop, return its absolute file URL to the user.
 - `preview/index.html` opened via `file://` should support the no-server review loop: keep comments in local browser storage, then use copy-all and paste the review comments back to Codex
 - After Codex applies the pasted review and rebuilds `preview/index.html`, treat that rebuilt file as the next review round; old local comments should not carry over
-- Prefer handing the confirmed skeleton package to the `PowerPoint` skill for final editable production
+- Prefer handing the confirmed skeleton package to `ppt-master-native-editable` for final editable production
 - Prefer `svg_final/` over `svg_output/` only when doing legacy direct export
 - Never claim that `svg_to_pptx.py` is equivalent to a native editable final PPT when the user cares about manual editing or PowerPoint fidelity
 

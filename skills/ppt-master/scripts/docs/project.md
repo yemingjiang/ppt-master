@@ -112,6 +112,24 @@ Style-interpretation guidance:
 Implementation note:
 - Internal helpers for this workflow live under `scripts/template_import/`
 
+## `clean_pptx_placeholders.py`
+
+Remove unwanted PowerPoint placeholder text boxes from an exported `.pptx`.
+
+```bash
+python3 scripts/clean_pptx_placeholders.py exports/final_deck.pptx --in-place
+python3 scripts/clean_pptx_placeholders.py exports/final_deck.pptx -o exports/final_deck_cleaned.pptx
+python3 scripts/clean_pptx_placeholders.py exports/final_deck.pptx --in-place --dry-run
+python3 scripts/clean_pptx_placeholders.py exports/final_deck.pptx --in-place --placeholder-type sldNum --format text
+```
+
+Notes:
+- Defaults to removing slide-number placeholders (`type=sldNum`)
+- Requires an explicit write mode: `--in-place` or `--output`
+- `--dry-run` reports what would be removed without rewriting the deck
+- Default output mode is JSON so downstream scripts can parse counts and status
+- Safe to run repeatedly; if no matching placeholders remain, it reports zero changes
+
 ## `error_helper.py`
 
 Show standardized fixes for common project errors.
