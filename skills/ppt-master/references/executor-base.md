@@ -46,9 +46,14 @@ Must output confirmation including: canvas dimensions, body font size, color sch
 - **Absolute spec adherence**: Strictly follow the color, layout, canvas format, and typography parameters in the spec
 - **Follow template structure**: If templates exist, inherit the template's visual framework
 - **Default responsibility**: Produce a reviewable skeleton package first, not the final polished `.pptx`, unless the user explicitly requests direct export from `ppt-master`
+- **Mode awareness**: Treat the project as one of three modes — `Review Skeleton` (default), `Native Editable Handoff` (editable final deck expected), or `Legacy Direct Export` (explicit compatibility export only)
 - **Audience-facing visible copy only**: Text placed in SVG pages is presumed to be shown to the presentation audience. Do NOT place presenter instructions, review comments, layout rationale, or meta-explanations on the slide surface unless the user explicitly requests an internal annotated deck.
 - **Move meta language to notes**: Phrases such as "这页的作用是...", "管理层要看的不是...", "建议口头讲...", "现场建议播放...", "对应问题：..." must be rewritten as audience-facing slide copy or moved to `notes/total.md`.
 - **Footer minimalism by default**: Unless the user explicitly requests on-slide citations, visible footers should default to page number only. Do not add `Source: ...`, file paths, or provenance lists to slide footers by default.
+- **Preview-vs-final rule**: `svg_output/` and `preview/index.html` represent approved structure and visual intent for review. They do **not** guarantee that direct SVG conversion will yield a faithful editable PowerPoint.
+- **Editable-final rule**: When the project mode is `Native Editable Handoff`, build the skeleton and support files to help a downstream native PowerPoint rebuild. Do not present the SVG export path as equivalent to the final editable deliverable.
+- **Wrap-sensitive copy rule**: In skeleton files intended for native editable handoff, avoid gratuitous manual line breaks unless they are truly intentional. Long KPI badges, paired metric/title blocks, and short executive conclusion bars should be written and boxed with native PowerPoint reconstruction in mind.
+- **Cross-engine caution**: Browser SVG and native PowerPoint use different text engines. If a line looks correct in the review HTML, it may still wrap differently in the final PPT. Treat text width, line count, and spacing in cards/badges as downstream QA hotspots.
 - **Main-agent ownership**: SVG generation must be performed by the current main agent, not delegated to sub-agents, because each page depends on shared upstream context and cross-page visual continuity
 - **Generation rhythm**: First lock the global design context, then generate pages sequentially one by one in the same continuous context; grouped page batches (for example, 5 pages at a time) are not allowed
 - **Phased batch generation** (recommended):
@@ -271,6 +276,12 @@ Automatically split `notes/total.md` into individual speaker note files in the `
 3. Iterate on `main_content.md`, `style_sheet.md`, `asset_manifest.md`, `notes/`, and SVG pages until the skeleton is confirmed
 4. Hand off to the `PowerPoint` skill for final editable production
 
+Notes:
+
+- This default path is the correct route whenever the user wants the final deck to stay editable in PowerPoint
+- The downstream `PowerPoint` pass should rebuild meaningful content as native text, shapes, tables, and layout components; screenshots and photos remain images only where appropriate
+- The downstream native pass should also render PPT previews and perform text-layout QA against the approved review draft, with special attention to wrap-sensitive blocks such as KPI cards, metric badges, dense callouts, and paired title+note panels
+
 **Legacy compatibility path** (explicit request only; see [shared-standards.md](shared-standards.md)):
 
 ```bash
@@ -284,3 +295,5 @@ python3 scripts/finalize_svg.py <project_path>
 python3 scripts/svg_to_pptx.py <project_path> -s final
 # Output: exports/<project_name>_<timestamp>.pptx + exports/<project_name>_<timestamp>_svg.pptx
 ```
+
+Use this legacy path only with an explicit warning that the result is a converter-oriented compatibility export and may be less editable or visually divergent in PowerPoint than the reviewed browser draft.

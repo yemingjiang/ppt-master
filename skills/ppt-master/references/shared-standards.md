@@ -228,6 +228,8 @@ python3 scripts/svg_to_pptx.py <project_path> -s final
 # Output: exports/<project_name>_<timestamp>.pptx + exports/<project_name>_<timestamp>_svg.pptx
 ```
 
+> This is the **legacy compatibility export** path. Use it only when `ppt-master` is explicitly asked to export PPTX directly. For final editable delivery, the preferred path is skeleton review plus downstream native rebuild in the `PowerPoint` skill.
+
 **Prohibited**:
 - NEVER use `cp` as a substitute for `finalize_svg.py`
 - NEVER export directly from `svg_output/` — MUST export from `svg_final/` (use `-s final`)
@@ -245,7 +247,7 @@ python3 scripts/svg_to_pptx.py <project_path> -s final
 
 #### Filter Soft Shadow — Recommended
 
-Best for: cards, floating panels, elevated elements. The `svg_to_pptx` converter automatically converts `feGaussianBlur` + `feOffset` into native PPTX `<a:outerShdw>`.
+Best for: cards, floating panels, elevated elements. The `svg_to_pptx` converter attempts to map `feGaussianBlur` + `feOffset` into native PPTX `<a:outerShdw>` during legacy export, but this mapping is not a substitute for a full native PowerPoint rebuild.
 
 ```xml
 <defs>

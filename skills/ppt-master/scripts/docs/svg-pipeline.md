@@ -1,8 +1,12 @@
 # SVG Pipeline Tools
 
+> This is the **legacy compatibility export** path. Use it only when the user explicitly wants `ppt-master` itself to export PPTX directly, or when the downstream `PowerPoint` skill is unavailable. For final editable decks, prefer the default skeleton review flow followed by native rebuild in the `PowerPoint` skill.
+
 These tools cover post-processing, SVG validation, speaker notes, and PPTX export.
 
 ## Recommended Pipeline
+
+Legacy direct-export sequence:
 
 Run these steps in order:
 
@@ -38,9 +42,15 @@ python3 scripts/svg_to_pptx.py <project_path> -s final --auto-advance 3
 ```
 
 Behavior:
-- Default output: timestamped pair in `exports/` — `<project_name>_<timestamp>.pptx` (native editable) + `<project_name>_<timestamp>_svg.pptx` (SVG snapshot)
+- Default output: timestamped pair in `exports/` — `<project_name>_<timestamp>.pptx` (converter-oriented compatibility deck) + `<project_name>_<timestamp>_svg.pptx` (SVG snapshot)
 - Recommended source directory: `svg_final/`
 - Speaker notes are embedded automatically unless `--no-notes` is used
+
+Important:
+
+- Do not present this converter output as equivalent to a high-fidelity native editable PowerPoint rebuild
+- Direct SVG conversion may flatten structure or render differently from the browser review draft
+- If the user wants a final deck that remains broadly editable, stop after skeleton review and hand off to the `PowerPoint` skill instead
 
 Dependency:
 

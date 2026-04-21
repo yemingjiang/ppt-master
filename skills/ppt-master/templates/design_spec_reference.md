@@ -10,11 +10,14 @@
 | **Canvas Format** | {canvas_info['name']} ({canvas_info['dimensions']}) |
 | **Page Count** | [Filled by Strategist] |
 | **Design Style** | {design_style} |
+| **Deliverable Mode** | [Review Skeleton / Native Editable Handoff / Legacy Direct Export] |
 | **Target Audience** | [Filled by Strategist] |
 | **Use Case** | [Filled by Strategist] |
 | **Created Date** | {date_str} |
 
 ---
+
+> When **Deliverable Mode = Native Editable Handoff**, the downstream PowerPoint build should be treated as a separate text-layout engine from the browser SVG review draft. If any headings, metric badges, or dense callouts are especially wrap-sensitive, note that expectation in the relevant sections below.
 
 ## II. Canvas Specification
 
@@ -255,3 +258,6 @@ Generate corresponding speaker note files for each page, saved to the `notes/` d
 - `<g opacity="...">` FORBIDDEN (group opacity); set on each child element individually
 - Image transparency uses overlay mask layer (`<rect fill="bg-color" opacity="0.x"/>`)
 - Inline styles only; external CSS and `@font-face` FORBIDDEN
+- When **Deliverable Mode = Native Editable Handoff**, the final `.pptx` is expected to be rebuilt downstream as native PowerPoint objects for meaningful text and recurring layout structures
+- `svg_to_pptx.py` remains a legacy compatibility export path, not the default route for the final editable deck
+- Native PowerPoint delivery should include a post-build text-layout QA pass against the approved review draft, checking for unnecessary wraps, overlap, badge overflow, and orphan punctuation / single-character lines
