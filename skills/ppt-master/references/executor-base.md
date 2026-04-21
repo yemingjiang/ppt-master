@@ -48,6 +48,7 @@ Must output confirmation including: canvas dimensions, body font size, color sch
 - **Default responsibility**: Produce a reviewable skeleton package first, not the final polished `.pptx`, unless the user explicitly requests direct export from `ppt-master`
 - **Audience-facing visible copy only**: Text placed in SVG pages is presumed to be shown to the presentation audience. Do NOT place presenter instructions, review comments, layout rationale, or meta-explanations on the slide surface unless the user explicitly requests an internal annotated deck.
 - **Move meta language to notes**: Phrases such as "这页的作用是...", "管理层要看的不是...", "建议口头讲...", "现场建议播放...", "对应问题：..." must be rewritten as audience-facing slide copy or moved to `notes/total.md`.
+- **Footer minimalism by default**: Unless the user explicitly requests on-slide citations, visible footers should default to page number only. Do not add `Source: ...`, file paths, or provenance lists to slide footers by default.
 - **Main-agent ownership**: SVG generation must be performed by the current main agent, not delegated to sub-agents, because each page depends on shared upstream context and cross-page visual continuity
 - **Generation rhythm**: First lock the global design context, then generate pages sequentially one by one in the same continuous context; grouped page batches (for example, 5 pages at a time) are not allowed
 - **Phased batch generation** (recommended):
@@ -76,13 +77,16 @@ Unless the user explicitly asks for legacy direct export, the Executor should le
 - `<project_path>/preview/index.html` — preferred review surface
 - `<project_path>/svg_output/` — raw page visuals
 
+When handing off review output in Codex desktop, always return a clickable absolute link to `<project_path>/preview/index.html`. Default to the static review flow: the file preview keeps comments in browser storage and should let the user copy all comments and paste them back to Codex.
+
 Preferred preview flow:
 
 ```bash
 python3 scripts/generate_skeleton_docs.py <project_path> --overwrite
 python3 scripts/build_preview_html.py <project_path> --source output
-python3 scripts/review_server.py <project_path> --source output
 ```
+
+The default reviewer path is the file preview plus a copy-all review handoff back to Codex. After Codex applies the pasted review and rebuilds `preview/index.html`, the rebuilt file becomes the next clean review round.
 
 Use `draft.pdf` only when the user explicitly prefers a static file for review.
 

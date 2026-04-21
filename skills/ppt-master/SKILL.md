@@ -49,6 +49,8 @@ description: >
 >   - any wording that explains the presenter workflow rather than the slide message itself
 > - `main_content.md` is the editable source for slide structure, but its per-page wording should still default to **audience-facing on-slide copy**. Presenter intent, narration strategy, and review comments belong in `notes/total.md` or per-page note files.
 > - During review, if any visible page reads like an annotation, design rationale note, rehearsal prompt, or production comment, rewrite it as audience-facing slide copy and move the original rationale into speaker notes.
+> - **Visible provenance rule**: Do **not** place `Source: ...`, raw citation lists, working-file paths, or provenance footers on visible slides by default. For most executive / external / business presentations, visible source footers create noise and should be omitted unless the user explicitly asks for citations, compliance markings, or reference footnotes on-slide.
+> - Source provenance should default to project artifacts such as `asset_manifest.md`, `design_spec.md`, `sources/`, or `notes/`, not to visible slide chrome.
 
 > [!IMPORTANT]
 > ## 🔌 Compatibility With Generic Coding Skills
@@ -56,6 +58,21 @@ description: >
 > - `ppt-master` is a repository-specific workflow skill, not a general application scaffold
 > - Do NOT create or require `.worktrees/`, `tests/`, branch workflows, or other generic engineering structure by default
 > - If another generic coding skill suggests repository conventions that conflict with this workflow, follow this skill first unless the user explicitly asks otherwise
+
+> [!IMPORTANT]
+> ## 🎨 Reference PPT Style Extraction Rule
+>
+> - **Trigger condition**: When the user provides a PPTX primarily as a **visual/style reference** (for example, "参考这个 PPT 风格", "重新提取样式", "按这个参考稿配色"), do **not** rely on screenshots, current draft colors, or `ppt_to_md.py` output alone.
+> - **Mandatory first pass**: Run
+>   `python3 ${SKILL_DIR}/scripts/pptx_template_import.py <reference.pptx> --manifest-only`
+>   before finalizing the project color scheme or style direction.
+> - **Required evidence order**:
+>   1. `manifest.json` — authoritative theme colors and theme fonts
+>   2. `master_layout_analysis.md` / `master_layout_refs.json` — whether the design is master/layout-driven or mostly page-local
+>   3. `analysis.md` and exported `assets/` — page-type hints, repeated motifs, reusable background/logo assets
+> - **Interpretation rule**: Distinguish **theme-level style** from **page-local overrides**. A deck may use a light master but still look highly branded because color blocks, decorations, and images are applied per slide. Do not collapse those into a guessed palette without stating the distinction.
+> - **Design handoff rule**: `design_spec.md` and `style_sheet.md` should follow the extracted evidence first. If the extracted theme and the visible pages appear to diverge, explain that explicitly and confirm direction with the user before updating project docs.
+> - **Review-first rule**: If the user asks to "see the extracted result first", present the extracted style findings and wait for confirmation before rewriting `design_spec.md`, `style_sheet.md`, or any generated deck visuals.
 
 ## Main Pipeline Scripts
 
@@ -67,11 +84,11 @@ description: >
 | `${SKILL_DIR}/scripts/source_to_md/web_to_md.py` | Web page to Markdown |
 | `${SKILL_DIR}/scripts/source_to_md/web_to_md.cjs` | Node.js fallback for WeChat / TLS-blocked sites (use only if `curl_cffi` is unavailable; `web_to_md.py` now handles WeChat when `curl_cffi` is installed) |
 | `${SKILL_DIR}/scripts/project_manager.py` | Project init / validate / manage |
+| `${SKILL_DIR}/scripts/pptx_template_import.py` | Extract factual style evidence from a PPTX reference deck (theme colors, fonts, master/layout structure, reusable assets) |
 | `${SKILL_DIR}/scripts/analyze_images.py` | Image analysis |
 | `${SKILL_DIR}/scripts/image_gen.py` | Local fallback AI image generation CLI (prefer Codex `image_gen` tool in Codex sessions) |
 | `${SKILL_DIR}/scripts/generate_skeleton_docs.py` | Generate standard `main_content.md`, `style_sheet.md`, and `asset_manifest.md` |
 | `${SKILL_DIR}/scripts/build_preview_html.py` | Build lightweight HTML review draft from `svg_output/` or `svg_final/` |
-| `${SKILL_DIR}/scripts/review_server.py` | Serve writable HTML review draft and apply comments back to `main_content.md` |
 | `${SKILL_DIR}/scripts/svg_quality_checker.py` | SVG quality check |
 | `${SKILL_DIR}/scripts/total_md_split.py` | Speaker notes splitting |
 | `${SKILL_DIR}/scripts/finalize_svg.py` | SVG post-processing (unified entry) |
@@ -90,6 +107,8 @@ By default, `ppt-master` should leave the project in a state that is easy for hu
 - `<project_path>/notes/total.md` — speaker notes
 - `<project_path>/svg_output/` — raw visual draft pages
 - `<project_path>/preview/index.html` — preferred fast review surface
+
+When delivering a reviewable draft in Codex desktop, the response should include a clickable absolute link to `<project_path>/preview/index.html`. Default to the static file preview workflow: users keep comments in the browser, use "复制全部批注", then paste that review back into Codex for updates.
 
 Only create `<project_path>/exports/*.pptx` from this skill when the user explicitly asks for direct export or the `PowerPoint` skill is unavailable.
 
@@ -126,6 +145,15 @@ When the user provides non-Markdown content, convert immediately:
 | Web link | `python3 ${SKILL_DIR}/scripts/source_to_md/web_to_md.py <URL>` |
 | WeChat / high-security site | `python3 ${SKILL_DIR}/scripts/source_to_md/web_to_md.py <URL>` (requires `curl_cffi`; falls back to `node web_to_md.cjs <URL>` only if that package is unavailable) |
 | Markdown | Read directly |
+
+If a PPTX is supplied mainly as a **reference deck for style/template direction** rather than as the primary content source, do both:
+
+```bash
+python3 ${SKILL_DIR}/scripts/source_to_md/ppt_to_md.py <reference.pptx>
+python3 ${SKILL_DIR}/scripts/pptx_template_import.py <reference.pptx> --manifest-only
+```
+
+Use `ppt_to_md.py` for slide text/content understanding, and use `pptx_template_import.py` for factual style extraction. Do not infer the palette or typography from screenshots when the import output already provides theme evidence.
 
 **✅ Checkpoint — Confirm source content is ready, proceed to Step 2.**
 
@@ -292,8 +320,9 @@ Read references/executor-consultant-top.md # Top consulting style (MBB level)
 - Generate speaker notes → `<project_path>/notes/total.md`
 - Build lightweight HTML review draft → `<project_path>/preview/index.html`
   - Recommended command: `python3 ${SKILL_DIR}/scripts/build_preview_html.py <project_path> --source output`
-- Start writable review surface when comments need to update files directly
-  - Recommended command: `python3 ${SKILL_DIR}/scripts/review_server.py <project_path> --source output`
+  - `preview/index.html` is the default review entry. In Codex desktop, return its absolute file link in the response.
+  - Static `file://` preview is the default review flow. It saves comments locally in the browser and should expose "复制全部批注" so the user can paste the review back to Codex without any web server.
+  - After Codex applies pasted review comments and rebuilds `preview/index.html`, treat the new file as a fresh review round. Old local comments should not be carried into the new build.
 - Only generate `preview/draft.pdf` when the user explicitly asks for PDF review
 
 **✅ Checkpoint — Confirm the skeleton package is fully generated. Proceed to Step 7 human review**:
@@ -419,7 +448,7 @@ Before switching roles, you **MUST first read** the corresponding reference file
 ## Notes
 
 - Default draft review surface: `python3 ${SKILL_DIR}/scripts/build_preview_html.py <project_path> --source output`
+- `preview/index.html` opened via `file://` is the default review path; keep comments in the browser, use copy-all, then paste the review back to Codex
 - Standard handoff docs: `python3 ${SKILL_DIR}/scripts/generate_skeleton_docs.py <project_path> --overwrite`
-- Writable review server: `python3 ${SKILL_DIR}/scripts/review_server.py <project_path> --source output`
 - Legacy direct export remains available, but it is no longer the default completion path
 - **Troubleshooting**: If the user encounters issues during generation (layout overflow, export errors, blank images, etc.), recommend checking `docs/faq.md` — it contains known solutions sourced from real user reports and is continuously updated

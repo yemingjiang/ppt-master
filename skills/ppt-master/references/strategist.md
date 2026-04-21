@@ -48,6 +48,31 @@ read_file templates/design_spec_reference.md
 ```
 The design_spec.md output **MUST** follow this template's structure exactly (Sections I through XI). After writing, perform a section-by-section self-check: I Project Information ✓ → II Canvas Spec ✓ → III Visual Theme ✓ → IV Typography ✓ → V Layout Principles ✓ → VI Icon Usage ✓ → VII Visualization Reference List ✓ → VIII Image Resource List ✓ → IX Content Outline ✓ → X Speaker Notes Requirements ✓ → XI Technical Constraints Reminder ✓. Any missing section must be completed before outputting the file.
 
+### Reference PPTX Style-Evidence Gate
+
+When the user provides a PPTX as a **style benchmark / reference deck**, Strategist must anchor visual decisions to extracted evidence before making color or typography recommendations.
+
+Required first pass:
+
+```bash
+python3 scripts/pptx_template_import.py <reference.pptx> --manifest-only
+```
+
+Read and interpret the outputs in this order:
+
+1. `manifest.json` — factual theme colors and theme fonts
+2. `master_layout_analysis.md` / `master_layout_refs.json` — whether the deck's style mainly comes from theme/master/layout or mostly from per-slide design
+3. `analysis.md` — page-type hints and repeated asset usage
+4. `assets/` — reusable logos, recurring backgrounds, and fixed decorative motifs
+
+Decision rules:
+
+- Treat extracted theme colors/fonts as the default baseline for `design_spec.md` and `style_sheet.md`; do not replace them with an unrelated guessed palette just because the current draft or a screenshot looks different.
+- Distinguish **theme-level palette** from **page-local visual styling**. If the deck looks richly branded but the master/layout is light, state that the branding is mostly implemented slide-by-slide.
+- If the visible pages and extracted theme appear to diverge, explicitly explain the divergence instead of silently averaging them into a new palette.
+- If the user asks to inspect style extraction results first, present the extracted findings and wait for confirmation before revising project docs.
+- Use screenshots / rendered pages only as a secondary visual cross-check after the extracted metadata has been anchored.
+
 ⛔ **BLOCKING**: After completing the read above, provide professional recommendations for the following eight items, then **present them as a bundled package to the user and wait for explicit confirmation or modifications**.
 
 > **Execution discipline**: This is the last BLOCKING checkpoint in the default pipeline (besides template selection). Once the user confirms, the AI must automatically complete the Design Specification & Content Outline and seamlessly proceed to subsequent image generation (if applicable), SVG skeleton generation, draft packaging, and HTML preview generation — no additional questions or pauses in between.
@@ -89,6 +114,8 @@ Audience?
 ### e. Color Scheme Recommendation
 
 Proactively provide a color scheme (HEX values) based on content characteristics and industry.
+
+When a reference PPTX style source exists, prefer the extracted theme colors as the starting point and only adjust after explicitly explaining why (for example, theme palette is warm red-gold, but page-local slides add darker photographic overlays).
 
 **Industry color quick reference** (full 14-industry list in `scripts/config.py` under `INDUSTRY_COLORS`):
 
@@ -245,6 +272,7 @@ When content outline pages involve **data visualization or infographic-style str
 ### Speaker Notes Requirements (Default — no discussion needed)
 
 - **Hard boundary**: Section IX Content Outline and downstream `main_content.md` must describe **audience-facing visible slide copy only**. Presenter reminders, explanation of why a page exists, speaking instructions, and review comments belong in Section X / `notes/`, not in slide body text.
+- **Default footer rule**: Do not plan visible `Source:` / `来源:` footers in the content outline unless the user explicitly requests citations or compliance-style provenance on the slide itself. By default, footer space should be reserved for page number only (or left empty).
 - **Forbidden visible-slide patterns unless the user explicitly asks for an internal/annotated deck**:
   - "这页的作用是..."
   - "管理层要看的不是..."

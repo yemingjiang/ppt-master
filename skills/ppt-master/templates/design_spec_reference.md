@@ -39,6 +39,7 @@
 ### Color Scheme
 
 > Strategist should determine specific color values based on project content, industry, and brand colors
+> If a reference PPTX style deck exists, base this section on extracted evidence from `pptx_template_import.py` first. When needed, explicitly note whether the chosen palette comes from the PPTX theme itself or from recurring page-local styling patterns observed across the reference deck.
 
 | Role | HEX | Purpose |
 | ---- | --- | ------- |
@@ -120,7 +121,7 @@
 
 - **Header area**: [Height and content description]
 - **Content area**: [Height and content description]
-- **Footer area**: [Height and content description]
+- **Footer area**: [Height and content description; default to page number only unless visible citations are explicitly requested]
 
 ### Common Layout Modes
 

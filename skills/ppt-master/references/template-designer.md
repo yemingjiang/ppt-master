@@ -39,6 +39,14 @@ Input priority for PPTX-backed template creation:
 8. cleaned slide SVG references for composition, spacing, and fixed decorative cues
 9. screenshots / original PPTX only for style verification
 
+Color and typography interpretation rules for PPTX-backed references:
+
+- Treat `manifest.json` theme colors and theme fonts as the authoritative baseline unless there is explicit evidence that the template intentionally ignores the theme.
+- Use `master_layout_analysis.md` to determine whether the reference deck's style is master-driven or primarily composed slide-by-slide.
+- Use cleaned reference SVG pages and screenshots to study composition, spacing, and repeated decorative cues only after theme/master facts are anchored.
+- If the visible deck mood and the extracted theme appear different, document that as a theme-vs-page-local distinction instead of inventing a blended palette.
+- Do not rewrite a warm red-gold reference into a cool blue system, or vice versa, unless the user explicitly asks for reinterpretation rather than faithful extraction.
+
 ---
 
 ## Core Template Inventory
@@ -96,6 +104,7 @@ If PPTX import output exists:
 - Prefer imported theme colors and fonts over visually guessed values
 - Reuse canonical backgrounds and logos from `normalized_assets.json` where they are globally meaningful to the template
 - Treat page-type candidates from `analysis.md` as hints, not guarantees
+- If the imported theme is lightweight but the deck still feels strongly branded, assume the branding may be encoded in recurring slide-local blocks, overlays, and images; preserve that distinction in the rebuilt template brief
 
 **Precondition**:
 

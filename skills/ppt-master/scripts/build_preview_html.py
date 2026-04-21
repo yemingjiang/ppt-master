@@ -8,6 +8,7 @@ import html
 import json
 import os
 import re
+import time
 from pathlib import Path
 
 from main_content_pipeline import parse_main_content
@@ -31,12 +32,9 @@ STRINGS = {
         "comments": "批注入口",
         "comment_hint": "记录这页的结构、文案、视觉或素材修改意见。内容会自动保存在当前浏览器；支持直接识别“标题改成 / 结论改成 / 要点改成 / 新增要点 / 删除要点 / 素材改成”等命令。",
         "comment_placeholder": "例如：标题改成：Maya 内已打通东亚角色到动画 1.0 链路；结论改成：4 月底可交付初版；新增要点：AI 视频生成已接入验证。",
-        "save": "保存批注",
-        "copy": "复制当前页",
-        "apply": "根据全部批注更新",
-        "updating": "正在根据批注更新 main_content.md，并同步 design_spec.md 与预览…",
-        "updated": "已根据批注更新 main_content.md，并刷新预览。",
-        "update_failed": "更新失败，请确认当前页面由 review_server.py 提供。",
+        "copy_all": "复制全部批注",
+        "copied_all": "已复制全部批注，可直接粘贴回 Codex。",
+        "copy_failed": "复制失败，请手动选中文本后复制。",
         "no_comments": "还没有可应用的批注。",
         "saved": "已保存到本地浏览器",
         "no_takeaway": "这一页还没有明确 takeaway。",
@@ -63,12 +61,9 @@ STRINGS = {
         "comments": "Comments",
         "comment_hint": "Capture structural, copy, visual, or asset feedback here. Stored locally in this browser. Structured commands such as title/takeaway/bullets/assets updates can be applied automatically.",
         "comment_placeholder": "Example: title: Maya-first East Asian character pipeline; takeaway: v1 ships by end of April; add bullet: AI video generation has been validated.",
-        "save": "Save comment",
-        "copy": "Copy current",
-        "apply": "Apply All Comments",
-        "updating": "Applying comments to main_content.md, syncing design_spec.md, and rebuilding preview…",
-        "updated": "Applied comments and refreshed the preview.",
-        "update_failed": "Update failed. Open this page via review_server.py.",
+        "copy_all": "Copy all comments",
+        "copied_all": "Copied all comments. Paste them back into Codex.",
+        "copy_failed": "Copy failed. Manually select the text and copy it.",
         "no_comments": "There are no comments to apply yet.",
         "saved": "Saved locally",
         "no_takeaway": "No takeaway yet.",
@@ -168,7 +163,7 @@ def build_html(
     entries: list[dict],
     strings: dict[str, str],
     project_key: str,
-    preview_source: str,
+    review_build_id: str,
 ) -> str:
     escaped_title = html.escape(title)
     nav_items = []
@@ -549,9 +544,7 @@ def build_html(
         <div class="panel-text">{html.escape(strings["comment_hint"])}</div>
         <textarea id="commentBox" placeholder="{html.escape(strings["comment_placeholder"])}"></textarea>
         <div class="comment-actions">
-          <button class="small-button" id="saveCommentBtn">{html.escape(strings["save"])}</button>
-          <button class="small-button" id="copyCommentBtn">{html.escape(strings["copy"])}</button>
-          <button class="small-button" id="applyCommentsBtn">{html.escape(strings["apply"])}</button>
+          <button class="small-button" id="copyAllCommentsBtn">{html.escape(strings["copy_all"])}</button>
         </div>
         <div class="save-state" id="saveState">{html.escape(strings["saved"])}</div>
       </section>
@@ -561,8 +554,9 @@ def build_html(
     const entries = {entries_json};
     const strings = {strings_json};
     const projectKey = {json.dumps(project_key)};
-    const previewSource = {json.dumps(preview_source)};
-    const storageKey = `ppt-master-preview-comments::${{projectKey}}`;
+    const reviewBuildId = {json.dumps(review_build_id)};
+    const storagePrefix = `ppt-master-preview-comments::${{projectKey}}::`;
+    const storageKey = `${{storagePrefix}}${{reviewBuildId}}`;
     const viewer = document.getElementById('viewer');
     const toolbarTitle = document.getElementById('slideToolbarTitle');
     const summaryTitle = document.getElementById('summaryTitle');
@@ -572,9 +566,25 @@ def build_html(
     const assetList = document.getElementById('assetList');
     const commentBox = document.getElementById('commentBox');
     const saveState = document.getElementById('saveState');
-    const applyCommentsBtn = document.getElementById('applyCommentsBtn');
     const links = Array.from(document.querySelectorAll('.slide-link'));
     let current = 0;
+
+    function cleanupStaleCommentKeys() {{
+      try {{
+        const staleKeys = [];
+        for (let i = 0; i < localStorage.length; i += 1) {{
+          const key = localStorage.key(i);
+          if (key && key.startsWith(storagePrefix) && key !== storageKey) {{
+            staleKeys.push(key);
+          }}
+        }}
+        staleKeys.forEach((key) => {{
+          localStorage.removeItem(key);
+        }});
+      }} catch (_error) {{
+        // Ignore localStorage cleanup failures and continue with current-session comments only.
+      }}
+    }}
 
     function loadComments() {{
       try {{
@@ -584,6 +594,7 @@ def build_html(
       }}
     }}
 
+    cleanupStaleCommentKeys();
     let comments = loadComments();
 
     function setSaveState(text) {{
@@ -644,44 +655,56 @@ def build_html(
       return `## ${{entry.number}} ${{entry.title}}\n\n- takeaway: ${{entry.takeaway || '-'}}\n- comment:\n${{body || '-'}}\n`;
     }}
 
-    async function applyAllComments() {{
-      const dirtyComments = Object.fromEntries(
-        Object.entries(comments).filter(([, value]) => (value || '').trim())
-      );
-      if (!Object.keys(dirtyComments).length) {{
+    function allCommentsMarkdown() {{
+      const blocks = entries
+        .map((entry) => {{
+          const body = (comments[entry.key] || '').trim();
+          if (!body) return '';
+          return `## ${{entry.number}} ${{entry.title}}\n\n- takeaway: ${{entry.takeaway || '-'}}\n- comment:\n${{body}}\n`;
+        }})
+        .filter(Boolean);
+      if (!blocks.length) {{
+        return '';
+      }}
+      return `# ${{strings.review_title}}\n\n- project_key: ${{projectKey}}\n\n${{blocks.join('\\n')}}`;
+    }}
+
+    function legacyCopyText(text) {{
+      const textarea = document.createElement('textarea');
+      textarea.value = text;
+      textarea.setAttribute('readonly', 'readonly');
+      textarea.style.position = 'fixed';
+      textarea.style.top = '-9999px';
+      textarea.style.left = '-9999px';
+      document.body.appendChild(textarea);
+      textarea.focus();
+      textarea.select();
+      textarea.setSelectionRange(0, textarea.value.length);
+      const copied = document.execCommand('copy');
+      document.body.removeChild(textarea);
+      return copied;
+    }}
+
+    async function copyAllComments() {{
+      const markdown = allCommentsMarkdown();
+      if (!markdown) {{
         setSaveState(strings.no_comments);
         return;
       }}
-
-      applyCommentsBtn.disabled = true;
-      setSaveState(strings.updating);
       try {{
-        const response = await fetch('/__ppt_master/update_main_content', {{
-          method: 'POST',
-          headers: {{ 'Content-Type': 'application/json' }},
-          body: JSON.stringify({{
-            comments: dirtyComments,
-            source: previewSource === 'svg_final' ? 'final' : 'output',
-            title: document.title,
-          }}),
-        }});
-        const payload = await response.json().catch(() => ({{ status: 'error' }}));
-        if (!response.ok || payload.status !== 'ok') {{
-          const message = payload.error || strings.update_failed;
-          throw new Error(message);
+        if (navigator.clipboard && typeof navigator.clipboard.writeText === 'function') {{
+          await navigator.clipboard.writeText(markdown);
+        }} else if (!legacyCopyText(markdown)) {{
+          throw new Error('legacy clipboard copy failed');
         }}
-        comments = {{}};
-        localStorage.removeItem(storageKey);
-        updateCommentDots();
-        setSaveState(strings.updated);
-        const selectedKey = entries[current] ? entries[current].key : '';
-        const target = `${{window.location.pathname}}?t=${{Date.now()}}${{selectedKey ? `#slide=${{selectedKey}}` : ''}}`;
-        window.location.replace(target);
+        setSaveState(strings.copied_all);
       }} catch (error) {{
-        const message = error && error.message ? error.message : strings.update_failed;
-        setSaveState(message);
-      }} finally {{
-        applyCommentsBtn.disabled = false;
+        console.error('Failed to copy review comments.', error);
+        if (legacyCopyText(markdown)) {{
+          setSaveState(strings.copied_all);
+          return;
+        }}
+        setSaveState(strings.copy_failed);
       }}
     }}
 
@@ -733,12 +756,7 @@ def build_html(
       saveComments();
     }});
 
-    document.getElementById('saveCommentBtn').addEventListener('click', saveComments);
-    document.getElementById('copyCommentBtn').addEventListener('click', async () => {{
-      await navigator.clipboard.writeText(currentCommentMarkdown());
-      setSaveState(strings.saved);
-    }});
-    applyCommentsBtn.addEventListener('click', applyAllComments);
+    document.getElementById('copyAllCommentsBtn').addEventListener('click', copyAllComments);
     document.getElementById('prevBtn').addEventListener('click', () => selectSlide(current - 1));
     document.getElementById('nextBtn').addEventListener('click', () => selectSlide(current + 1));
     window.addEventListener('keydown', (event) => {{
@@ -776,8 +794,15 @@ def render_preview(
     entries, project_name, language = build_entries(project_path, output_path, source_dir_name)
     strings = STRINGS[language]
     resolved_title = title or (f"{project_name} 审稿预览" if language == "zh" else f"{project_name} Draft Review")
+    review_build_id = str(time.time_ns())
     output_path.write_text(
-        build_html(resolved_title, entries, strings, project_path.name, source_dir_name),
+        build_html(
+            resolved_title,
+            entries,
+            strings,
+            project_path.name,
+            review_build_id,
+        ),
         encoding="utf-8",
     )
 
@@ -786,6 +811,8 @@ def render_preview(
         "project_path": str(project_path),
         "source": source_dir_name,
         "output_html": str(output_path),
+        "output_file_url": output_path.as_uri(),
+        "review_build_id": review_build_id,
         "slides": len(entries),
     }
 
@@ -794,11 +821,17 @@ def main() -> int:
     args = parse_args()
     project_path = Path(args.project_path).expanduser().resolve()
     output_path = Path(args.output).expanduser().resolve() if args.output else None
-    payload = render_preview(project_path, source=args.source, output_path=output_path, title=args.title)
+    payload = render_preview(
+        project_path,
+        source=args.source,
+        output_path=output_path,
+        title=args.title,
+    )
     if args.json:
         print(json.dumps(payload, ensure_ascii=False, indent=2))
     else:
         print(f"Saved: {payload['output_html']}")
+        print(f"Open in browser: {payload['output_file_url']}")
         print(f"Slides: {payload['slides']}")
         print(f"Source: {Path(payload['project_path']) / payload['source']}")
     return 0

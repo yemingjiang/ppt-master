@@ -101,6 +101,14 @@ Notes:
 - Use `--manifest-only` when you explicitly want only the lightweight import output without slide SVG export
 - Intended for template reference preparation, not for final 1:1 template delivery
 
+Style-interpretation guidance:
+- Use `--manifest-only` as the default first pass when the goal is to understand a reference deck's style before writing `design_spec.md` or `style_sheet.md`
+- Treat `manifest.json` theme colors and theme fonts as the factual baseline for palette / typography decisions
+- Use `master_layout_analysis.md` to judge whether the deck's look comes from the master/layout system or mostly from slide-local design work
+- Use `analysis.md` plus exported `assets/` to identify recurring motifs such as logos, full-slide backgrounds, and decorative overlays
+- Do not infer the final palette from screenshots or an already-generated draft when the extracted manifest contradicts that guess
+- If visible slides look different from the theme metadata, explicitly record that as "theme-level vs page-local styling" rather than blending them into an unsupported new palette
+
 Implementation note:
 - Internal helpers for this workflow live under `scripts/template_import/`
 
