@@ -1,19 +1,14 @@
----
-name: ppt-master-native-editable
-description: Use when a reviewed ppt-master skeleton package needs a final native editable .pptx rebuild with close visual fidelity, predictable manual editability, and PPT-native layout QA.
----
+# Native Editable Rebuild
 
-# PPT Master Native Editable
+Use this reference after `ppt-master` has already completed the skeleton and review loop.
 
-Use this skill after `ppt-master` has already completed the skeleton and review loop.
-
-In normal user-facing operation, the user still invokes only `ppt-master`. This skill is the internal native-editable continuation point after the reviewed skeleton is locked.
+In normal user-facing operation, the user invokes only `ppt-master`. This reference is the internal native-editable continuation point after the reviewed skeleton is locked.
 
 This is the native editable rebuild phase for `ppt-master` projects. It takes the confirmed handoff package and produces the final editable `.pptx` with native PowerPoint text, shapes, tables, charts, media placement, and post-export QA.
 
 ## When to Use
 
-Use this skill when all of the following are true:
+Use this reference when all of the following are true:
 
 - the project already has a reviewed `ppt-master` package
 - `preview/index.html` reflects the approved page order, copy, and visual intent
@@ -134,10 +129,10 @@ python3 skills/ppt-master/scripts/clean_pptx_placeholders.py <deck.pptx> --in-pl
 - no unintended placeholder text boxes
 - no avoidable wrap/overlap drift relative to the approved review draft
 
-## Relationship to Other Skills
+## Relationship to Other Workflow Phases
 
 - `ppt-master` owns source processing, skeleton generation, review loop, and handoff packaging.
-- `ppt-master-native-editable` owns the final native editable rebuild.
+- This reference owns the final native editable rebuild inside `ppt-master`.
 - Generic `slides` / PowerPoint skill remains for non-`ppt-master` deck work and broad PowerPoint authoring tasks.
 
 ## Completion Criteria

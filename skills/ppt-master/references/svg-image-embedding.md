@@ -121,7 +121,7 @@ python3 scripts/finalize_svg.py <project_path>         # Icons, images, text, ro
 python3 scripts/svg_to_pptx.py <project_path> -s final  # Export PPTX from final version
 ```
 
-> This route belongs to the **legacy direct-export** workflow. For final editable PowerPoint production, prefer the default skeleton review flow and then rebuild the deck with `ppt-master-native-editable`.
+> This route belongs to the **legacy direct-export** workflow. For final editable PowerPoint production, prefer the default skeleton review flow and then rebuild the deck with the internal native rebuild path in `references/native-editable.md`.
 
 ### Standalone: embed_images.py (Advanced Usage)
 

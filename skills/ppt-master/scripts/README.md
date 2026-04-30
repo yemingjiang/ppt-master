@@ -32,8 +32,8 @@ python3 scripts/build_preview_html.py <project_path> --source output
 Use the workflow in one of these modes:
 
 - **Review Skeleton** — default; stop after the skeleton package and `preview/index.html`
-- **Native Editable Handoff** — default whenever the user wants a final editable `.pptx`; hand the confirmed skeleton package to `ppt-master-native-editable`
-- **Legacy Direct Export** — only when the user explicitly asks `ppt-master` itself to export PPTX directly, or when the native editable skill is unavailable
+- **Native Editable Handoff** — default whenever the user wants a final editable `.pptx`; continue from the confirmed skeleton package into the internal native rebuild phase
+- **Legacy Direct Export** — only when the user explicitly asks `ppt-master` itself to export PPTX directly, or when the native editable rebuild path is unavailable
 
 Important:
 
@@ -44,7 +44,7 @@ Important:
 
 Final polished deck:
 
-- By default, hand the confirmed skeleton package to `ppt-master-native-editable` for native editable `.pptx` production
+- By default, continue from the confirmed skeleton package into the internal native rebuild phase for native editable `.pptx` production
 - This downstream pass should rebuild meaningful text and recurring layout components as native PowerPoint objects
 - After native rebuild, render PPT-native slide previews and compare them against the approved review draft to catch wrap/overlap drift before delivery
 - Do not treat direct SVG conversion as the default final-editable path
@@ -156,7 +156,7 @@ python3 scripts/update_repo.py --skip-pip
 - Treat `preview/index.html` as the main review entry point. In Codex desktop, return its absolute file URL to the user.
 - `preview/index.html` opened via `file://` should support the no-server review loop: keep comments in local browser storage, then use copy-all and paste the review comments back to Codex
 - After Codex applies the pasted review and rebuilds `preview/index.html`, treat that rebuilt file as the next review round; old local comments should not carry over
-- Prefer handing the confirmed skeleton package to `ppt-master-native-editable` for final editable production
+- Prefer continuing from the confirmed skeleton package into the internal native rebuild phase for final editable production
 - Prefer `svg_final/` over `svg_output/` only when doing legacy direct export
 - Never claim that `svg_to_pptx.py` is equivalent to a native editable final PPT when the user cares about manual editing or PowerPoint fidelity
 

@@ -228,7 +228,7 @@ python3 scripts/svg_to_pptx.py <project_path> -s final
 # Output: exports/<project_name>_<timestamp>.pptx + exports/<project_name>_<timestamp>_svg.pptx
 ```
 
-> This is the **legacy compatibility export** path. Use it only when `ppt-master` is explicitly asked to export PPTX directly. For final editable delivery, the preferred path is skeleton review plus downstream native rebuild in `ppt-master-native-editable`.
+> This is the **legacy compatibility export** path. Use it only when `ppt-master` is explicitly asked to export PPTX directly. For final editable delivery, the preferred path is skeleton review plus the internal native rebuild defined in `references/native-editable.md`.
 
 **Prohibited**:
 - NEVER use `cp` as a substitute for `finalize_svg.py`

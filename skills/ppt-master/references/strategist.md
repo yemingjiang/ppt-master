@@ -22,14 +22,14 @@ Decision rules:
 
 - If the user says "final PPT", "editable PPT", "可编辑", "后面要在 PPT 里改", or equivalent, default to **Native Editable Handoff**
 - Do not assume that an approved SVG/HTML preview means `svg_to_pptx.py` will produce a faithful editable deck
-- Use **Legacy Direct Export** only when the user explicitly asks `ppt-master` to export PPTX directly, or when the repo-local native editable skill is unavailable
+- Use **Legacy Direct Export** only when the user explicitly asks `ppt-master` to export PPTX directly, or when the internal native editable rebuild path is unavailable
 - Record the chosen mode in the design spec so downstream roles understand whether the project stops at skeleton review, hands off to native editable rebuild, or uses compatibility export
 
 Planning implications:
 
 - In **Native Editable Handoff**, describe repeated structures as reconstructable components: cards, tables, timelines, stage blocks, tags, labels, and text hierarchies should stay decomposed in `main_content.md` / `design_spec.md`
 - Distinguish true media assets from layout primitives. Screenshots, photos, and video covers may remain media; headlines, body text, section blocks, and recurring layout chrome should be planned for native PowerPoint reconstruction
-- If the user judges the deck mainly by visual similarity but still needs editability, state that "preview similarity" and "final native editability" are separate goals and the downstream native rebuild pass must balance both
+- If the user judges the deck mainly by visual similarity but still needs editability, state that "preview similarity" and "final native editability" are separate goals and the native rebuild phase must balance both
 - Mark **wrap-sensitive copy** mentally while planning: long one-line conclusions, metric badges, short KPI labels, paired title+note cards, and dense executive-summary sentences are the places most likely to diverge between browser SVG preview and native PowerPoint text layout
 - Mark **alignment-sensitive modules** mentally while planning: large numerals beside titles, left-number/right-title comparison cards, and footer/page-number chrome are the places most likely to look visually wrong even when the text technically fits
 - When such blocks are important, prefer wording and layout structures that survive native reconstruction more robustly: avoid unnecessary manual line breaks, note when a phrase should ideally stay on one/two lines, and keep metric/tag copy short enough for downstream PowerPoint fitting
@@ -312,7 +312,7 @@ When content outline pages involve **data visualization or infographic-style str
 
 ### Native Editable Handoff Readiness (Default — must be satisfied)
 
-Because `ppt-master` now defaults to a skeleton-first workflow, the Design Specification must be explicit enough to support later handoff to the repo-local `ppt-master-native-editable` skill.
+Because `ppt-master` now defaults to a skeleton-first workflow, the Design Specification must be explicit enough to support the later internal native editable rebuild phase.
 
 Strategist must ensure the content outline is precise enough that downstream steps can generate:
 

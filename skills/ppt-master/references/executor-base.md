@@ -51,7 +51,7 @@ Must output confirmation including: canvas dimensions, body font size, color sch
 - **Move meta language to notes**: Phrases such as "这页的作用是...", "管理层要看的不是...", "建议口头讲...", "现场建议播放...", "对应问题：..." must be rewritten as audience-facing slide copy or moved to `notes/total.md`.
 - **Footer minimalism by default**: Unless the user explicitly requests on-slide citations, visible footers should default to page number only. Do not add `Source: ...`, file paths, or provenance lists to slide footers by default.
 - **Preview-vs-final rule**: `svg_output/` and `preview/index.html` represent approved structure and visual intent for review. They do **not** guarantee that direct SVG conversion will yield a faithful editable PowerPoint.
-- **Editable-final rule**: When the project mode is `Native Editable Handoff`, build the skeleton and support files to help a downstream native PowerPoint rebuild. Do not present the SVG export path as equivalent to the final editable deliverable.
+- **Editable-final rule**: When the project mode is `Native Editable Handoff`, build the skeleton and support files to help the native PowerPoint rebuild phase. Do not present the SVG export path as equivalent to the final editable deliverable.
 - **Wrap-sensitive copy rule**: In skeleton files intended for native editable handoff, avoid gratuitous manual line breaks unless they are truly intentional. Long KPI badges, paired metric/title blocks, and short executive conclusion bars should be written and boxed with native PowerPoint reconstruction in mind.
 - **Cross-engine caution**: Browser SVG and native PowerPoint use different text engines. If a line looks correct in the review HTML, it may still wrap differently in the final PPT. Treat text width, line count, and spacing in cards/badges as downstream QA hotspots.
 - **Alignment-sensitive modules**: Large-number comparison cards, left-number/right-title summaries, and footer page chrome should be handed off as deliberate composite modules. A native PPT rebuild must QA vertical alignment and avoid accidental auto-placeholder behavior.
@@ -275,14 +275,14 @@ Automatically split `notes/total.md` into individual speaker note files in the `
 1. Build or refresh `preview/index.html`
 2. Present the draft and collect human feedback
 3. Iterate on `main_content.md`, `style_sheet.md`, `asset_manifest.md`, `notes/`, and SVG pages until the skeleton is confirmed
-4. Hand off to the repo-local `ppt-master-native-editable` skill for final editable production
+4. Continue to the internal native rebuild phase in `references/native-editable.md` for final editable production
 
 Notes:
 
 - This default path is the correct route whenever the user wants the final deck to stay editable in PowerPoint
-- The downstream native editable pass should rebuild meaningful content as native text, shapes, tables, and layout components; screenshots and photos remain images only where appropriate
-- The downstream native pass should also render PPT previews and perform text-layout QA against the approved review draft, with special attention to wrap-sensitive blocks such as KPI cards, metric badges, dense callouts, and paired title+note panels
-- The downstream native pass should also verify that no unintended slide-number placeholders or other auto-generated placeholder text boxes survive export, and that large numerals do not sit visibly lower than adjacent titles in comparison cards
+- The native editable rebuild phase should rebuild meaningful content as native text, shapes, tables, and layout components; screenshots and photos remain images only where appropriate
+- The native rebuild phase should also render PPT previews and perform text-layout QA against the approved review draft, with special attention to wrap-sensitive blocks such as KPI cards, metric badges, dense callouts, and paired title+note panels
+- The native rebuild phase should also verify that no unintended slide-number placeholders or other auto-generated placeholder text boxes survive export, and that large numerals do not sit visibly lower than adjacent titles in comparison cards
 
 **Legacy compatibility path** (explicit request only; see [shared-standards.md](shared-standards.md)):
 

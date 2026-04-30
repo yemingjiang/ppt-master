@@ -6,7 +6,7 @@ This file serves as the project entry point for general AI agents. Before execut
 
 PPT Master is an AI-driven presentation workflow. Through multi-role collaboration (Strategist → Image_Generator → Skeleton Executor), it converts source documents (PDF/DOCX/URL/Markdown) into a reviewable skeleton package first, then hands confirmed projects to a native editable rebuild step for final `.pptx` production.
 
-**Core Pipeline**: `Source Document → Create Project → Template Option → Strategist Eight Confirmations → [Image_Generator] → Skeleton Executor → main_content/design_spec/style_sheet/asset_manifest/notes/svg_output/preview → Human Review Loop → ppt-master-native-editable`
+**Core Pipeline**: `Source Document → Create Project → Template Option → Strategist Eight Confirmations → [Image_Generator] → Skeleton Executor → main_content/design_spec/style_sheet/asset_manifest/notes/svg_output/preview → Human Review Loop → Native Editable Rebuild`
 
 **Legacy Compatibility Pipeline**: `Source Document → ... → Executor → total_md_split.py → finalize_svg.py → svg_to_pptx.py`
 
@@ -64,7 +64,7 @@ python3 skills/ppt-master/scripts/svg_to_pptx.py <project_path> -s final
 ## Core Directories
 
 - `skills/ppt-master/SKILL.md` — Main entry point and complete workflow
-- `skills/ppt-master-native-editable/SKILL.md` — Final native editable rebuild after skeleton review
+- `skills/ppt-master/references/native-editable.md` — Final native editable rebuild after skeleton review
 - `skills/ppt-master/workflows/create-template.md` — Standalone template workflow
 - `skills/ppt-master/references/` — Role definitions and technical specifications
 - `skills/ppt-master/scripts/` — Tool scripts
@@ -105,4 +105,4 @@ python3 skills/ppt-master/scripts/svg_to_pptx.py <project_path> -s final
 - **NEVER** export directly from `svg_output/` — MUST export from `svg_final/` (use `-s final`)
 - Do NOT add extra flags like `--only` to the post-processing commands
 - **NEVER** run the three post-processing steps in a single code block or single shell invocation
-- For editable final delivery, prefer the default skeleton review flow plus `skills/ppt-master-native-editable/SKILL.md`
+- For editable final delivery, prefer the default skeleton review flow plus `skills/ppt-master/references/native-editable.md`
