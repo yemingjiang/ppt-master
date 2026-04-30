@@ -1,11 +1,8 @@
 ---
 name: ppt-master
-description: >
-  Use when the user has source materials and needs a presentation skeleton,
-  slide-by-slide outline, visual direction, reviewable draft, and handoff package
-  before building the final editable PowerPoint, or when they mention "ppt-master".
+description: Use when explicitly asked to run ppt-master for a presentation outline,
+  draft, or handoff package.
 ---
-
 # PPT Master Skill
 
 > Skeleton-first presentation workflow. Converts source documents into a reviewable presentation skeleton, fast HTML visual draft, and native-editable handoff package.
