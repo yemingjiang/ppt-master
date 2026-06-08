@@ -463,7 +463,7 @@ python3 ${SKILL_DIR}/scripts/svg_to_pptx.py <project_path> -s final
 
 > ❌ **NEVER** use `cp` as a substitute for `finalize_svg.py` — it performs multiple critical processing steps
 > ❌ **NEVER** export directly from `svg_output/` — MUST use `-s final` to export from `svg_final/`
-> ❌ **NEVER** add extra flags like `--only`
+> ℹ️ `svg_to_pptx.py --only native|legacy` is the only documented optional flag for the export step; use it when the user specifically wants just one variant. Do NOT pass other ad-hoc flags to the legacy post-processing commands.
 
 ---
 

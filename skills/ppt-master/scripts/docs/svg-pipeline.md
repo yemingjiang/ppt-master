@@ -45,6 +45,7 @@ Behavior:
 - Default output: timestamped pair in `exports/` — `<project_name>_<timestamp>.pptx` (converter-oriented compatibility deck) + `<project_name>_<timestamp>_svg.pptx` (SVG snapshot)
 - Recommended source directory: `svg_final/`
 - Speaker notes are embedded automatically unless `--no-notes` is used
+- `--only native|legacy` is supported when the user specifically wants just one variant; do not invent other ad-hoc flags for the legacy pipeline
 
 Important:
 

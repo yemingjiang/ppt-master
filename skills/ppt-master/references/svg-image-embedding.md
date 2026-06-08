@@ -36,13 +36,16 @@ Defined in the Design Specification & Content Outline; each image has a status a
 3. Executor generates SVGs (svg_output/)
    ├── Existing/Pending → <image href="../images/xxx.png" .../>
    └── Placeholder → Dashed border + description text
-4. Preview: python3 -m http.server -d <project_path> 8000 → /svg_output/<filename>.svg
-5. Post-processing & Export
+4. Preview (default review flow):
+   ├── python3 scripts/build_preview_html.py <project_path> --source output
+   └── Open <project_path>/preview/index.html (file:// is fine; the viewer keeps comments locally)
+5. Native editable rebuild (default final path) — see references/native-editable.md
+   Or, only when explicitly requested, the legacy direct export:
    ├── python3 scripts/finalize_svg.py <project_path>
    └── python3 scripts/svg_to_pptx.py <project_path> -s final
 ```
 
-> Recommended: During generation, keep external references in `svg_output/`. Post-processing via `finalize_svg.py` auto-embeds images into `svg_final/`, then export PPTX from `svg_final/`.
+> Recommended: During generation, keep external references in `svg_output/`. The default review surface is `preview/index.html` built from `svg_output/`. If you need the legacy direct export, `finalize_svg.py` auto-embeds images into `svg_final/`, then export PPTX from `svg_final/`.
 
 ---
 
@@ -83,7 +86,14 @@ Defined in the Design Specification & Content Outline; each image has a status a
 
 ### Preview Method
 
-Browser security restrictions prevent loading external images from directly opened SVGs. Start an HTTP server from the project root:
+The default review surface for the project is `preview/index.html`, which is built from `svg_output/` by `build_preview_html.py` and works directly via `file://`:
+
+```bash
+python3 scripts/build_preview_html.py <project_path> --source output
+# Then open <project_path>/preview/index.html in the browser.
+```
+
+If you specifically want to inspect an individual `svg_output/*.svg` file in isolation, browser security policy may block external image references when opening the file directly. In that case, start a local HTTP server from the project root:
 
 ```bash
 python3 -m http.server -d <project_path> 8000
@@ -168,7 +178,7 @@ Since `clipPath` is incompatible with PPT, clipping paths for image rounded corn
 ## FAQ
 
 **Q: Can't see images when opening SVG directly?**
-Browser security policy blocks cross-directory requests. Start an HTTP server from the project root, or run `finalize_svg.py` first then view from `svg_final/`.
+The default review entry is `preview/index.html` (built via `build_preview_html.py`), which works through `file://` and bypasses this issue. If you specifically need to open a raw `svg_output/*.svg`, browser security policy blocks cross-directory requests — start an HTTP server from the project root, or run the legacy `finalize_svg.py` first and view from `svg_final/`.
 
 **Q: Base64 file too large?**
 Compress the original image, use JPEG format, reduce resolution (match actual display dimensions).

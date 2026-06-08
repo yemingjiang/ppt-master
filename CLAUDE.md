@@ -86,6 +86,6 @@ python3 skills/ppt-master/scripts/svg_to_pptx.py <project_path> -s final
 
 - **NEVER** use `cp` as a substitute for `finalize_svg.py`
 - **NEVER** export directly from `svg_output/` — MUST export from `svg_final/` (use `-s final`)
-- Do NOT add extra flags like `--only` to the post-processing commands
+- Do NOT pass arbitrary flags to the post-processing commands. `svg_to_pptx.py --only native|legacy` is the only documented optional flag and may be used when the user specifically wants just one variant
 - **NEVER** run the three post-processing steps in a single code block or single shell invocation
 - For editable final delivery, prefer the default skeleton review flow plus `skills/ppt-master/references/native-editable.md`

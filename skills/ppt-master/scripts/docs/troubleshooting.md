@@ -15,7 +15,13 @@ python3 scripts/project_manager.py validate <project_path>
 
 1. Check the file path and filename.
 2. Confirm naming conventions are consistent.
-3. Preview via a local server if browser file loading is inconsistent:
+3. Default review surface: rebuild `preview/index.html` and open it via `file://`:
+
+```bash
+python3 scripts/build_preview_html.py <project_path> --source output
+```
+
+4. If you specifically need to inspect a raw `svg_output/*.svg` and the browser blocks external image references, fall back to a local server:
 
 ```bash
 python3 -m http.server --directory <svg_output_path> 8000
