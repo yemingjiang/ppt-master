@@ -6,7 +6,7 @@ This file provides a project overview for Claude Code. Before executing PPT gene
 
 PPT Master is an AI-driven presentation workflow. Through multi-role collaboration (Strategist → Image_Generator → Skeleton Executor), it converts source documents (PDF/DOCX/URL/Markdown) into a reviewable skeleton package first, then hands confirmed projects to a native editable rebuild step for final `.pptx` production.
 
-**Core Pipeline**: `Source Document → Create Project → Template Option → Strategist Eight Confirmations → [Image_Generator] → Skeleton Executor → main_content/design_spec/style_sheet/asset_manifest/notes/svg_output/preview → Human Review Loop → ppt-master-native-editable`
+**Core Pipeline**: `Source Document → Create Project → Template Option → Strategist Eight Confirmations → [Image_Generator] → Skeleton Executor → main_content/design_spec/style_sheet/asset_manifest/notes/svg_output/preview → Human Review Loop → Native Editable Rebuild`
 
 **Legacy Compatibility Pipeline**: `Source Document → ... → Executor → total_md_split.py → finalize_svg.py → svg_to_pptx.py`
 
@@ -49,7 +49,7 @@ python3 skills/ppt-master/scripts/svg_to_pptx.py <project_path> -s final
 ## Architecture
 
 - `skills/ppt-master/references/` — AI role definitions and technical specifications
-- `skills/ppt-master-native-editable/SKILL.md` — Final native editable rebuild after skeleton review
+- `skills/ppt-master/references/native-editable.md` — Final native editable rebuild after skeleton review (Step 8 of the main skill)
 - `skills/ppt-master/scripts/` — Runnable tool scripts
 - `skills/ppt-master/scripts/docs/` — Topic-focused script docs
 - `skills/ppt-master/templates/` — Layout templates, chart templates, 640+ vector icons
@@ -88,4 +88,4 @@ python3 skills/ppt-master/scripts/svg_to_pptx.py <project_path> -s final
 - **NEVER** export directly from `svg_output/` — MUST export from `svg_final/` (use `-s final`)
 - Do NOT add extra flags like `--only` to the post-processing commands
 - **NEVER** run the three post-processing steps in a single code block or single shell invocation
-- For editable final delivery, prefer the default skeleton review flow plus `skills/ppt-master-native-editable/SKILL.md`
+- For editable final delivery, prefer the default skeleton review flow plus `skills/ppt-master/references/native-editable.md`

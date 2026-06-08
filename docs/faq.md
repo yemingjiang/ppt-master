@@ -35,7 +35,7 @@ Yes. PPT Master includes a built-in image generation script that supports multip
 Yes — but the workflow now has two stages.
 
 - **Default stage:** `ppt-master` first creates a reviewable skeleton package (`main_content.md`, `design_spec.md`, `style_sheet.md`, `asset_manifest.md`, `notes/`, `svg_output/`, `preview/index.html`)
-- **Final editable stage:** once the skeleton is approved, `ppt-master-native-editable` rebuilds the final `.pptx` with native PowerPoint text and shapes
+- **Final editable stage:** once the skeleton is approved, `ppt-master` continues automatically into its built-in native editable rebuild step (Step 8) and produces the final `.pptx` with native PowerPoint text and shapes
 - **Compatibility stage:** `svg_to_pptx.py` can still export `.pptx` directly, but that is now a legacy path, not the preferred editable-delivery route
 
 When the final native editable `.pptx` is produced, meaningful text, graphics, and layout components are directly editable in PowerPoint. Office 2016+ is still recommended.

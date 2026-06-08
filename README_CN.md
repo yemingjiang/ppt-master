@@ -7,25 +7,14 @@
 
 [English](./README.md) | 中文
 
-<p align="center">
-  <a href="https://hugohe3.github.io/ppt-master/"><strong>在线预览</strong></a> ·
-  <a href="https://www.hehugo.com/"><strong>关于何雨果</strong></a> ·
-  <a href="./examples/"><strong>示例</strong></a> ·
-  <a href="./docs/zh/faq.md"><strong>常见问题</strong></a> ·
-  <a href="mailto:heyug3@gmail.com"><strong>联系我</strong></a>
-</p>
-
-> **官方渠道 —** 本项目**仅**在 [GitHub](https://github.com/hugohe3/ppt-master)（主仓库）和 [AtomGit](https://atomgit.com/hugohe3/ppt-master)（自动同步镜像）发布。其他平台上的转发版本均为非官方版本，不由作者维护。遵循 MIT 协议——使用需保留署名。
+> **原官方渠道 —** 本项目**仅**在 [GitHub](https://github.com/hugohe3/ppt-master)（主仓库）和 [AtomGit](https://atomgit.com/hugohe3/ppt-master)（自动同步镜像）发布。其他平台上的转发版本均为非官方版本，不由作者维护。遵循 MIT 协议——使用需保留署名。
 
 ---
-
 丢进一份 PDF、DOCX、网址或 Markdown，先拿回一份**可审稿的演示骨架**（`main_content.md`、`design_spec.md`、`preview/index.html`），结构确认后再生成**原生可编辑的 PowerPoint**。
 
-> **运作方式** —— PPT Master 是一套在 AI IDE（Claude Code / Cursor / VS Code + Copilot / Codebuddy 等）里运行的工作流（一个 "skill"）。你在 IDE 的对话框里跟 AI 说"用这份 PDF 做一份 PPT"，AI 会先在你本机生成可审稿骨架和 HTML 草稿；结构确认后，再通过 repo 内的 native-editable 重建步骤产出最终 `.pptx`。你不写任何代码——IDE 只是你和 AI 对话的地方。
+> **运作方式** —— PPT Master 是一套在 AI IDE（Claude Code / Cursor / VS Code + Copilot / Codebuddy 等）里运行的工作流（一个 "skill"）。你在 IDE 的对话框里跟 AI 说"用这份 PDF 做一份 PPT"，AI 会先在你本机生成可审稿骨架和 HTML 草稿；骨架确认后，同一个工作流会自动衔接进 native-editable 重建步骤产出最终 `.pptx`。你不写任何代码——IDE 只是你和 AI 对话的地方。
 >
 > **你要做的**：装 Python、装一个 AI IDE、把资料放进来。第一次配置约 15 分钟；之后每做一份 PPT 大约 10–20 分钟的聊天。
-
-**[为什么选 PPT Master？](./docs/zh/why-ppt-master.md)**
 
 市面上不缺 AI PPT 工具——缺的是一个**生成出来的 PPT 能真正拿去用**的工具。我每天都在做 PPT，但大部分产品输出的是图片或网页截图，好看但改不了；要么就是基础到只有文本框和列表。你还得按月充会员，把文件传到别人的服务器上，被锁在某个平台里。
 
@@ -37,60 +26,6 @@ PPT Master 不一样：
 - **数据不出本地** — 你的文件不应该为了做一份 PPT 就被上传到别人的服务器。除与 AI 模型的对话外，全流程在你的电脑上完成
 - **不锁定平台** — 你的工作流不应该被任何一家公司绑架。Claude Code、Cursor、VS Code Copilot 等均可驱动；Claude、GPT、Gemini、Kimi 等模型均可使用
 
-**[在线预览 →](https://hugohe3.github.io/ppt-master/)** · [`examples/`](./examples/) — 15 个项目，229 页
-
-## 效果展示
-
-<table>
-  <tr>
-    <td align="center"><img src="docs/assets/screenshots/preview_magazine_garden.png" alt="杂志风 — 打造小院指南" /><br/><sub><b>杂志风</b> — 暖色调，大图排版，生活方式感</sub></td>
-    <td align="center"><img src="docs/assets/screenshots/preview_academic_medical.png" alt="学术风 — 医学图像分割研究" /><br/><sub><b>学术风</b> — 严谨结构，数据图表，论文答辩场景</sub></td>
-  </tr>
-  <tr>
-    <td align="center"><img src="docs/assets/screenshots/preview_dark_art_mv.png" alt="暗色艺术风 — MV 深度解析" /><br/><sub><b>暗色艺术风</b> — 电影感深色背景，美术馆陈列感</sub></td>
-    <td align="center"><img src="docs/assets/screenshots/preview_nature_wildlife.png" alt="自然风 — 湿地野生动物纪录" /><br/><sub><b>自然纪录风</b> — 沉浸式摄影，简洁信息层级</sub></td>
-  </tr>
-  <tr>
-    <td align="center"><img src="docs/assets/screenshots/preview_tech_claude_plans.png" alt="科技风 — Claude AI 订阅方案" /><br/><sub><b>科技 / SaaS 风</b> — 白底卡片，定价表格，产品说明书</sub></td>
-    <td align="center"><img src="docs/assets/screenshots/preview_launch_xiaomi.png" alt="发布会风 — 小米春季新品" /><br/><sub><b>发布会风</b> — 高对比度，参数突出，苹果/小米发布会感</sub></td>
-  </tr>
-</table>
-
----
-
-## 关于作者
-
-我是何雨果（Hugo He），一名投融资领域的专业人士（注册会计师 · 资产评估师 · 咨询工程师（投资）），同时也是一名开源产品实践者。
-
-PPT Master 源于一个真实的痛点：在投融资和咨询工作中，我每天都要制作和审阅大量 PPT，而市面上的 AI 幻灯片工具导出的都是图片，不是可编辑的元素。作为一个每天都需要点击进去修改内容的人，这完全不可接受。我需要的是真正的 DrawingML——点击任何元素都能直接编辑，就像手工搭建的一样。
-
-这个项目是我把**专业领域经验**和**产品工程能力**结合起来的一次实践——把一个复杂的专业痛点，变成一个任何人都能用的开源工具。
-
-🌐 [个人网站](https://www.hehugo.com/) · 📧 [heyug3@gmail.com](mailto:heyug3@gmail.com) · 🐙 [@hugohe3](https://github.com/hugohe3)
-
----
-
-## 支持这个项目
-
-PPT Master 由我一个人开发和维护，完全自费。每个新模板、Bug 修复、文档更新背后都要跑 AI 模型，这些 token 费用目前全部是我自掏腰包。
-
-如果 PPT Master 帮到了你，欢迎赞助一点。这些钱会直接用于制作更多模板、更快修复问题，以及让这个项目持续免费开源。
-
-**个人赞助**
-
-<a href="https://paypal.me/hugohe3"><img src="https://img.shields.io/badge/PayPal-赞助-00457C?style=for-the-badge&logo=paypal&logoColor=white" alt="通过 PayPal 赞助" /></a>
-
-<img src="docs/assets/alipay-qr.jpg" alt="支付宝收款码" width="220" />
-
-金额随意，心意最重要。
-
-**企业合作 / 定制服务**
-
-需要定制行业模板、私有化部署、或集成咨询？我每季度承接少量付费项目。
-
-📧 [heyug3@gmail.com](mailto:heyug3@gmail.com)
-
----
 
 ## 快速开始
 
@@ -204,11 +139,11 @@ AI：好的，先确认设计规范：
    ...
 ```
 
-AI 先完成前半段——内容分析、设计规范、SVG 骨架、配套 handoff 文件和 HTML 审稿页；骨架确认后，再进入 native editable 重建阶段产出最终 `.pptx`。
+AI 端到端跑完整条流水线——内容分析、设计规范、SVG 骨架、配套 handoff 文件和 HTML 审稿页；骨架确认后，同一工作流会自动衔接进 native editable 重建阶段产出最终 `.pptx`。
 
 > **默认输出：** 项目目录中的可审稿骨架包——`main_content.md`、`design_spec.md`、`style_sheet.md`、`asset_manifest.md`、`notes/`、`svg_output/` 和 `preview/index.html`。
 >
-> **最终可编辑输出：** 审稿确认后，交给 [`skills/ppt-master-native-editable/SKILL.md`](./skills/ppt-master-native-editable/SKILL.md) 重建最终原生可编辑 `.pptx`。
+> **最终可编辑输出：** 骨架确认后，ppt-master 自动进入内置的[原生可编辑重建步骤](./skills/ppt-master/references/native-editable.md)生成最终 `.pptx`。
 >
 > **兼容导出：** `ppt-master` 仍可通过 `svg_to_pptx.py` 直接导出 `.pptx`，但这已经是显式兼容路径，不再是默认的可编辑交付方式。
 
@@ -240,65 +175,17 @@ GEMINI_MODEL=gemini-3.1-flash-image-preview
 
 | | 文档 | 说明 |
 |---|------|------|
-| 🆚 | [为什么选 PPT Master](./docs/zh/why-ppt-master.md) | 与 Gamma、Copilot 等工具的对比 |
 | 🪟 | [Windows 安装指南](./docs/zh/windows-installation.md) | Windows 用户手把手安装教程 |
 | 📖 | [SKILL.md](./skills/ppt-master/SKILL.md) | 核心流程与规则 |
-| 🧱 | [ppt-master-native-editable](./skills/ppt-master-native-editable/SKILL.md) | 骨架审稿后的最终原生可编辑重建 |
+| 🧱 | [原生可编辑重建](./skills/ppt-master/references/native-editable.md) | 骨架审稿后的最终原生可编辑重建步骤（已并入主 skill） |
 | 📐 | [画布格式](./skills/ppt-master/references/canvas-formats.md) | PPT 16:9、小红书、朋友圈等 10+ 种格式 |
 | 🛠️ | [脚本与工具](./skills/ppt-master/scripts/README.md) | 所有脚本和命令 |
-| 💼 | [示例](./examples/README.md) | 15 个项目，229 页 |
-| 🏗️ | [技术路线](./docs/zh/technical-design.md) | 架构、设计哲学、为什么选 SVG |
 | ❓ | [常见问题](./docs/zh/faq.md) | 模型选择、费用、排版问题排查、自定义模板 |
 
----
-
-## 贡献
-
-详见 [CONTRIBUTING.md](./CONTRIBUTING.md)。
 
 ## 开源协议
 
 [MIT](LICENSE)
 
-## 致谢
-
-[SVG Repo](https://www.svgrepo.com/) · [Tabler Icons](https://github.com/tabler/tabler-icons) · [Robin Williams](https://en.wikipedia.org/wiki/Robin_Williams_(author))（CRAP 设计原则）· 麦肯锡、BCG、贝恩
-
-## 联系与合作
-
-欢迎合作交流、将 PPT Master 集成到你的工作流，或者单纯提问：
-
-- 💬 **提问与分享** — [GitHub Discussions](https://github.com/hugohe3/ppt-master/discussions)
-- 🐛 **Bug 反馈与功能建议** — [GitHub Issues](https://github.com/hugohe3/ppt-master/issues)
-- 🌐 **了解更多** — [www.hehugo.com](https://www.hehugo.com/)
-
-> 企业合作 / 咨询 / 定制模板请见上方 **[支持这个项目](#支持这个项目)** 板块。
-
----
-
-## Star History
-
-<a href="https://star-history.com/#hugohe3/ppt-master&Date">
- <picture>
-   <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/svg?repos=hugohe3/ppt-master&type=Date&theme=dark" />
-   <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/svg?repos=hugohe3/ppt-master&type=Date" />
-   <img alt="Star History Chart" src="https://api.star-history.com/svg?repos=hugohe3/ppt-master&type=Date" />
- </picture>
-</a>
-
----
-
-## DigitalOcean Support
-
-<p>本项目获得 DigitalOcean Open Source Credits Program 支持：</p>
-<p>
-  <a href="https://m.do.co/c/547f129aabe1">
-    <img src="https://opensource.nyc3.cdn.digitaloceanspaces.com/attribution/assets/PoweredByDO/DO_Powered_by_Badge_blue.svg" alt="Powered by DigitalOcean" width="201" />
-  </a>
-</p>
-
----
-
-Made with ❤️ by [何雨果 Hugo He](https://www.hehugo.com/) — 如果这个项目对你有帮助，请给一个 ⭐，也欢迎[赞助支持](#支持这个项目)。
 
 [⬆ 回到顶部](#ppt-master--ai-先生成可审稿骨架再生成原生可编辑-pptx)

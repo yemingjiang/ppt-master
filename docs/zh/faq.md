@@ -35,7 +35,7 @@ PPT Master 可以在任何能读取文件和执行命令的 AI 编程代理中�
 可以，但现在流程分成两个阶段：
 
 - **默认阶段：** `ppt-master` 先生成可审稿骨架包（`main_content.md`、`design_spec.md`、`style_sheet.md`、`asset_manifest.md`、`notes/`、`svg_output/`、`preview/index.html`）
-- **最终可编辑阶段：** 骨架确认后，由 `ppt-master-native-editable` 重建最终 `.pptx`，把真正有意义的文本和图形做成 PowerPoint 原生对象
+- **最终可编辑阶段：** 骨架确认后，`ppt-master` 自动衔接进内置的 native editable 重建步骤（即 Step 8），把真正有意义的文本和图形做成 PowerPoint 原生对象
 - **兼容阶段：** `svg_to_pptx.py` 仍然可以直接导出 `.pptx`，但这已经是 legacy 路径，不再是默认的可编辑交付方式
 
 当最终原生可编辑 `.pptx` 生成后，主要文字、图形和布局组件都可以直接在 PowerPoint 里编辑。仍建议使用 **Office 2016** 或更高版本。

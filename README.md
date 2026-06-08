@@ -21,13 +21,9 @@ English | [中文](./README_CN.md)
 
 Drop in a PDF, DOCX, URL, or Markdown — get back a **reviewable presentation skeleton first** (`main_content.md`, `design_spec.md`, `preview/index.html`), then a **native-editable PowerPoint** when the structure is approved.
 
-> **How it works** — PPT Master is a workflow (a "skill") that works inside AI IDEs like Claude Code, Cursor, VS Code + Copilot, or Codebuddy. You chat with the AI — "make a deck from this PDF" — and it first builds a reviewable skeleton package and HTML draft on your computer. Once that draft is approved, the repo-local native-editable rebuild produces the final `.pptx`. No coding on your side; the IDE is just where the conversation happens.
+> **How it works** — PPT Master is a workflow (a "skill") that works inside AI IDEs like Claude Code, Cursor, VS Code + Copilot, or Codebuddy. You chat with the AI — "make a deck from this PDF" — and it first builds a reviewable skeleton package and HTML draft on your computer. Once you approve the skeleton, the same workflow continues internally into a native editable rebuild step that produces the final `.pptx`. No coding on your side; the IDE is just where the conversation happens.
 >
 > **What you'll do**: install Python, install an AI IDE, drop in your material. First-time setup is about 15 minutes. Each deck takes ~10–20 minutes of back-and-forth with the AI.
-
-**[Why PPT Master?](./docs/why-ppt-master.md)**
-
-There's no shortage of AI presentation tools — what's missing is one where the output is **actually usable as a real PowerPoint file**. I build presentations every day, but most tools export images or web screenshots: they look nice but you can't edit anything. Others produce bare-bones text boxes and bullet lists. And they all want a monthly subscription, upload your files to their servers, and lock you into their platform.
 
 PPT Master is different:
 
@@ -36,61 +32,6 @@ PPT Master is different:
 - **Transparent, predictable cost** — the tool is free and open source; the only cost is your own AI editor, and you know exactly what you're paying. As low as **$0.08/deck** with VS Code Copilot
 - **Data stays local** — your files shouldn't have to be uploaded to someone else's server just to make a presentation. Apart from AI model communication, the entire pipeline runs on your machine
 - **No platform lock-in** — your workflow shouldn't be held hostage by any single company. Works with Claude Code, Cursor, VS Code Copilot, and more; supports Claude, GPT, Gemini, Kimi, and other models
-
-**[See live examples →](https://hugohe3.github.io/ppt-master/)** · [`examples/`](./examples/) — 15 projects, 229 pages
-
-## Gallery
-
-<table>
-  <tr>
-    <td align="center"><img src="docs/assets/screenshots/preview_magazine_garden.png" alt="Magazine style — Garden building guide" /><br/><sub><b>Magazine</b> — warm earthy tones, photo-rich layout</sub></td>
-    <td align="center"><img src="docs/assets/screenshots/preview_academic_medical.png" alt="Academic style — Medical image segmentation research" /><br/><sub><b>Academic</b> — structured research format, data-driven</sub></td>
-  </tr>
-  <tr>
-    <td align="center"><img src="docs/assets/screenshots/preview_dark_art_mv.png" alt="Dark art style — Music video analysis" /><br/><sub><b>Dark Art</b> — cinematic dark background, gallery aesthetic</sub></td>
-    <td align="center"><img src="docs/assets/screenshots/preview_nature_wildlife.png" alt="Nature style — Wildlife wetland documentary" /><br/><sub><b>Nature Documentary</b> — immersive photography, minimal UI</sub></td>
-  </tr>
-  <tr>
-    <td align="center"><img src="docs/assets/screenshots/preview_tech_claude_plans.png" alt="Tech style — Claude AI subscription plans" /><br/><sub><b>Tech / SaaS</b> — clean white cards, pricing table layout</sub></td>
-    <td align="center"><img src="docs/assets/screenshots/preview_launch_xiaomi.png" alt="Product launch style — Xiaomi spring release" /><br/><sub><b>Product Launch</b> — high contrast, bold specs highlight</sub></td>
-  </tr>
-</table>
-
----
-
-## Built by Hugo He
-
-I'm a finance professional (CPA · CPV · Consulting Engineer (Investment)) who got tired of spending hours on presentations that could be automated. So I built this.
-
-PPT Master started from a simple frustration: existing AI slide tools export images, not editable shapes. As someone who reviews and edits hundreds of slides in investment and consulting work, that was unacceptable. I wanted real DrawingML — click on any element and change it, just like you built it by hand.
-
-This project is my attempt to bridge the gap between **domain expertise** and **product engineering** — turning a complex professional pain point into an open-source tool that anyone can use.
-
-🌐 [Personal website](https://www.hehugo.com/) · 📧 [heyug3@gmail.com](mailto:heyug3@gmail.com) · 🐙 [@hugohe3](https://github.com/hugohe3)
-
----
-
-## Support This Project
-
-PPT Master is built and maintained by one person, fully self-funded. Every new template, bug fix, and documentation update runs through AI models that cost real money — and right now those token bills come out of my own pocket.
-
-If PPT Master has been helpful to you, consider chipping in. Sponsorship directly funds more templates, faster fixes, and keeps this project free and open-source.
-
-**Individual sponsorship**
-
-<a href="https://paypal.me/hugohe3"><img src="https://img.shields.io/badge/PayPal-Sponsor-00457C?style=for-the-badge&logo=paypal&logoColor=white" alt="Sponsor via PayPal" /></a>
-
-<img src="docs/assets/alipay-qr.jpg" alt="Alipay QR Code" width="220" />
-
-Any amount is appreciated.
-
-**Enterprise / Custom work**
-
-Need a custom industry template, private deployment, or integration consulting? I take on a limited number of paid engagements each quarter.
-
-📧 [heyug3@gmail.com](mailto:heyug3@gmail.com)
-
----
 
 ## Quick Start
 
@@ -200,11 +141,11 @@ AI:  Sure. Let's confirm the design spec:
      ...
 ```
 
-The AI handles the full front half — content analysis, design spec, SVG skeleton generation, support files, and HTML review draft — and then hands the confirmed package to the native editable rebuild step for final `.pptx` production.
+The AI handles the full pipeline end-to-end — content analysis, design spec, SVG skeleton generation, support files, and HTML review draft — pauses for your skeleton review, then continues internally into the native editable rebuild step to produce the final `.pptx`.
 
 > **Default output:** a reviewable skeleton package in the project directory — `main_content.md`, `design_spec.md`, `style_sheet.md`, `asset_manifest.md`, `notes/`, `svg_output/`, and `preview/index.html`.
 >
-> **Final editable output:** after review, hand the confirmed package to [`skills/ppt-master-native-editable/SKILL.md`](./skills/ppt-master-native-editable/SKILL.md) to rebuild the final native editable `.pptx`.
+> **Final editable output:** once you approve the skeleton, ppt-master continues automatically into its built-in [native editable rebuild step](./skills/ppt-master/references/native-editable.md) to produce the final `.pptx`.
 >
 > **Legacy compatibility output:** `ppt-master` can still export `.pptx` directly through `svg_to_pptx.py`, but that is now an explicit compatibility path rather than the preferred editable-delivery route.
 
@@ -236,65 +177,17 @@ Run `python3 skills/ppt-master/scripts/image_gen.py --list-backends` to see tier
 
 | | Document | Description |
 |---|----------|-------------|
-| 🆚 | [Why PPT Master](./docs/why-ppt-master.md) | How it compares to Gamma, Copilot, and other AI tools |
 | 🪟 | [Windows Installation](./docs/windows-installation.md) | Step-by-step setup guide for Windows users |
 | 📖 | [SKILL.md](./skills/ppt-master/SKILL.md) | Core workflow and rules |
-| 🧱 | [ppt-master-native-editable](./skills/ppt-master-native-editable/SKILL.md) | Final native editable rebuild after skeleton review |
+| 🧱 | [Native Editable Rebuild](./skills/ppt-master/references/native-editable.md) | Final native editable rebuild step (built into the main skill) |
 | 📐 | [Canvas Formats](./skills/ppt-master/references/canvas-formats.md) | PPT 16:9, Xiaohongshu, WeChat, and 10+ formats |
 | 🛠️ | [Scripts & Tools](./skills/ppt-master/scripts/README.md) | All scripts and commands |
-| 💼 | [Examples](./examples/README.md) | 15 projects, 229 pages |
-| 🏗️ | [Technical Design](./docs/technical-design.md) | Architecture, design philosophy, why SVG |
 | ❓ | [FAQ](./docs/faq.md) | Model selection, cost, layout troubleshooting, custom templates |
 
----
-
-## Contributing
-
-See [CONTRIBUTING.md](./CONTRIBUTING.md) for how to get involved.
 
 ## License
 
 [MIT](LICENSE)
 
-## Acknowledgments
-
-[SVG Repo](https://www.svgrepo.com/) · [Tabler Icons](https://github.com/tabler/tabler-icons) · [Robin Williams](https://en.wikipedia.org/wiki/Robin_Williams_(author)) (CRAP principles) · McKinsey, BCG, Bain
-
-## Contact & Collaboration
-
-Looking to collaborate, integrate PPT Master into your workflow, or just have questions?
-
-- 💬 **Questions & sharing** — [GitHub Discussions](https://github.com/hugohe3/ppt-master/discussions)
-- 🐛 **Bug reports & feature requests** — [GitHub Issues](https://github.com/hugohe3/ppt-master/issues)
-- 🌐 **Learn more about the author** — [www.hehugo.com](https://www.hehugo.com/)
-
-> For enterprise / consulting / custom-template work, see the **[Support This Project](#support-this-project)** section above.
-
----
-
-## Star History
-
-<a href="https://star-history.com/#hugohe3/ppt-master&Date">
- <picture>
-   <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/svg?repos=hugohe3/ppt-master&type=Date&theme=dark" />
-   <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/svg?repos=hugohe3/ppt-master&type=Date" />
-   <img alt="Star History Chart" src="https://api.star-history.com/svg?repos=hugohe3/ppt-master&type=Date" />
- </picture>
-</a>
-
----
-
-## Supported by DigitalOcean
-
-<p>This project is supported by:</p>
-<p>
-  <a href="https://m.do.co/c/547f129aabe1">
-    <img src="https://opensource.nyc3.cdn.digitaloceanspaces.com/attribution/assets/PoweredByDO/DO_Powered_by_Badge_blue.svg" alt="Powered by DigitalOcean" width="201" />
-  </a>
-</p>
-
----
-
-Made with ❤️ by [Hugo He](https://www.hehugo.com/) — if this project helps you, please give it a ⭐ and consider [sponsoring](#support-this-project).
 
 [⬆ Back to Top](#ppt-master--ai-builds-review-first-presentation-skeletons-and-native-editable-pptx-from-any-document)
