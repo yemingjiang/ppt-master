@@ -69,6 +69,37 @@ def _http_get(url: str, *, headers: dict | None = None, timeout: int | None = No
     return requests.get(url, headers=headers, timeout=timeout,
                         verify=verify, stream=stream)
 
+
+# Hard cap on a single downloaded image to avoid memory exhaustion from a
+# hostile or buggy endpoint. 64 MiB is well above any legitimate web image.
+MAX_IMAGE_BYTES = 64 * 1024 * 1024
+
+
+def _read_capped(resp, max_bytes: int = MAX_IMAGE_BYTES) -> bytes:
+    """Read a response body, aborting if it exceeds max_bytes.
+
+    Honors a too-large Content-Length up front, then enforces the cap while
+    streaming in case the header is missing or wrong.
+    """
+    declared = resp.headers.get("Content-Length")
+    if declared is not None:
+        try:
+            if int(declared) > max_bytes:
+                raise ValueError(f"image too large ({int(declared)} bytes)")
+        except (TypeError, ValueError) as exc:
+            if "image too large" in str(exc):
+                raise
+    chunks = []
+    total = 0
+    for chunk in resp.iter_content(chunk_size=65536):
+        if not chunk:
+            continue
+        total += len(chunk)
+        if total > max_bytes:
+            raise ValueError(f"image exceeded size cap ({max_bytes} bytes)")
+        chunks.append(chunk)
+    return b"".join(chunks)
+
 try:
     from PIL import Image
     PILLOW_AVAILABLE = True
@@ -252,8 +283,10 @@ def download_and_rewrite_images(
                     headers={"User-Agent": CONFIG["user_agent"]},
                     timeout=CONFIG["timeout"],
                     verify=False,
+                    stream=True,
                 )
                 resp.raise_for_status()
+                img_bytes = _read_capped(resp)
                 filename = build_image_filename(
                     abs_url, idx, resp.headers.get("Content-Type"))
 
@@ -265,7 +298,7 @@ def download_and_rewrite_images(
                 if is_webp and PILLOW_AVAILABLE:
                     # Convert webp to png (optimized)
                     try:
-                        img_data = io.BytesIO(resp.content)
+                        img_data = io.BytesIO(img_bytes)
                         pil_image = Image.open(img_data)
 
                         # Update filename to .png
@@ -296,7 +329,7 @@ def download_and_rewrite_images(
                             filename = os.path.basename(local_path)
                             counter += 1
                         with open(local_path, "wb") as f:
-                            f.write(resp.content)
+                            f.write(img_bytes)
                 else:
                     local_path = os.path.join(image_dir, filename)
 
@@ -310,7 +343,7 @@ def download_and_rewrite_images(
                         counter += 1
 
                     with open(local_path, "wb") as f:
-                        f.write(resp.content)
+                        f.write(img_bytes)
                 downloaded[abs_url] = filename
                 saved_name = filename
                 saved += 1
@@ -459,107 +492,6 @@ def find_main_content(soup: BeautifulSoup) -> Tag | None:
 
     # Fallback to body
     return best_element if best_element else soup.body
-
-
-def element_to_markdown(element: Tag | NavigableString | None) -> str:
-    """Recursively convert a BeautifulSoup node to Markdown."""
-    if element is None:
-        return ""
-
-    if isinstance(element, NavigableString):
-        text = str(element).strip()
-        return text if text else ""
-
-    tag_name = element.name.lower()
-
-    # Skip hidden/unwanted tags
-    if tag_name in ['script', 'style', 'meta', 'link', 'input', 'button', 'select']:
-        return ""
-
-    content = ""
-    for child in element.children:
-        content += element_to_markdown(child)
-        # Add spacing logic here if needed, but usually block elements handle it
-
-    # Block handlers
-    if tag_name in ['h1', 'h2', 'h3', 'h4', 'h5', 'h6']:
-        level = int(tag_name[1])
-        return f"\n{'#' * level} {content}\n\n"
-
-    elif tag_name == 'p':
-        # Clean up internal whitespace
-        content = re.sub(r'\s+', ' ', content).strip()
-        return f"\n{content}\n\n" if content else ""
-
-    elif tag_name == 'br':
-        return "  \n"
-
-    elif tag_name == 'hr':
-        return "\n---\n"
-
-    elif tag_name == 'div':
-        return f"\n{content}\n"
-
-    elif tag_name == 'blockquote':
-        lines = content.strip().split('\n')
-        quoted = '\n'.join([f"> {line}" for line in lines if line.strip()])
-        return f"\n{quoted}\n\n"
-
-    elif tag_name in ['ul', 'ol']:
-        # This is tricky without "state" (knowing we are in a list)
-        # For simplicity in this recursive version, we rely on LI handling
-        return f"\n{content}\n"
-
-    elif tag_name == 'li':
-        # Simple list handling
-        clean_content = content.strip()
-        return f"- {clean_content}\n"
-
-    elif tag_name == 'pre':
-        return f"\n```\n{content}\n```\n\n"
-
-    elif tag_name == 'code':
-        # If parent is pre, handle in pre. If inline:
-        parent = element.parent
-        if parent and parent.name == 'pre':
-            return content
-        return f"`{content}`"
-
-    elif tag_name == 'a':
-        href = element.get('href', '')
-        if href and not href.startswith('javascript:'):
-            return f"[{content}]({href})"
-        return content
-
-    elif tag_name == 'img':
-        src = element.get('src', '')
-        alt = element.get('alt', '')
-        if src:
-            return f"![{alt}]({src})"
-        return ""
-
-    elif tag_name == 'table':
-        # Basic table text extraction, full markdown table support is complex
-        # Leaving as raw text or simplistic conversion for now
-        # Ideally, we'd parse TRs and TDs
-        return f"\n{content}\n"
-
-    elif tag_name == 'tr':
-        return f"{content}|\n"
-
-    elif tag_name in ['td', 'th']:
-        return f"| {content.strip()} "
-
-    # Style formatting
-    elif tag_name in ['strong', 'b']:
-        return f"**{content}**"
-    elif tag_name in ['em', 'i']:
-        return f"*{content}*"
-    elif tag_name in ['del', 's', 'strike']:
-        return f"~~{content}~~"
-
-    # Default for span, section, etc.
-    return f"{content} "
 
 
 def simple_html_to_markdown_traversal(soup: Tag | BeautifulSoup | None) -> str:

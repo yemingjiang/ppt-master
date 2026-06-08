@@ -17,11 +17,10 @@ from image_backends.backend_common import (
     MAX_RETRIES,
     download_image,
     http_error,
-    is_rate_limit_error,
     normalize_image_size,
     require_api_key,
     resolve_output_path,
-    retry_delay,
+    run_with_retries,
 )
 
 
@@ -153,10 +152,8 @@ def generate(prompt: str, negative_prompt: str = None,
     base_url = os.environ.get("SILICONFLOW_BASE_URL") or DEFAULT_ENDPOINT
     resolved_model = model or os.environ.get("SILICONFLOW_MODEL") or DEFAULT_MODEL
 
-    last_error = None
-    for attempt in range(max_retries + 1):
-        try:
-            return _generate_image(
+    return run_with_retries(
+        lambda: _generate_image(
                 api_key=api_key,
                 prompt=prompt,
                 negative_prompt=negative_prompt,
@@ -166,15 +163,6 @@ def generate(prompt: str, negative_prompt: str = None,
                 filename=filename,
                 model=resolved_model,
                 base_url=base_url,
-            )
-        except Exception as exc:
-            last_error = exc
-            if attempt >= max_retries:
-                break
-            limited = is_rate_limit_error(exc)
-            delay = retry_delay(attempt, rate_limited=limited)
-            label = "Rate limit hit" if limited else f"Error: {exc}"
-            print(f"\n  [WARN] {label}. Retrying in {delay}s...")
-            time.sleep(delay)
-
-    raise RuntimeError(f"Failed after {max_retries + 1} attempts. Last error: {last_error}")
+            ),
+        max_retries=max_retries,
+    )

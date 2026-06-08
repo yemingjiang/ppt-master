@@ -36,6 +36,9 @@ class ConvertContext:
     rel_id_counter: int = 2  # rId1 reserved for slideLayout
     svg_dir: Path | None = None
     inherited_styles: dict[str, str] = field(default_factory=dict)
+    # Shared by reference across all child contexts so that conversion
+    # failures nested inside groups bubble up to the slide level.
+    errors: list[str] = field(default_factory=list)
 
     def next_id(self) -> int:
         """Allocate the next shape ID."""
@@ -92,8 +95,11 @@ class ConvertContext:
             defs=self.defs,
             id_counter=self.id_counter,
             slide_num=self.slide_num,
-            translate_x=self.translate_x + dx,
-            translate_y=self.translate_y + dy,
+            # SVG transforms compose as matrices: a child's translate is
+            # expressed in the parent's already-scaled space, so the delta
+            # must be pre-multiplied by the inherited scale.
+            translate_x=self.translate_x + dx * self.scale_x,
+            translate_y=self.translate_y + dy * self.scale_y,
             scale_x=self.scale_x * sx,
             scale_y=self.scale_y * sy,
             filter_id=filter_id or self.filter_id,
@@ -102,6 +108,7 @@ class ConvertContext:
             rel_id_counter=self.rel_id_counter,
             svg_dir=self.svg_dir,
             inherited_styles=merged,
+            errors=self.errors,
         )
 
     def sync_from_child(self, child_ctx: ConvertContext) -> None:

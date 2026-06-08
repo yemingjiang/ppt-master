@@ -7,6 +7,12 @@ import re
 from pathlib import Path
 
 
+# Canonical asset Status values (see templates/design_spec_reference.md):
+# Pending | Existing | Placeholder. Used as the shared default when a spec
+# entry omits Status, so the manifest and main_content model agree.
+DEFAULT_ASSET_STATUS = "Existing"
+
+
 SECTION_HEADERS = {
     "project": "## I. Project Information",
     "visual": "## III. Visual Theme",
@@ -27,8 +33,28 @@ def detect_language(text: str) -> str:
     return "zh" if has_cjk(text) else "en"
 
 
+def slide_key(stem: str) -> str:
+    """Extract a normalized two-digit slide key from an SVG/heading stem.
+
+    Handles every naming convention blessed by validate_project_structure:
+      - ``01_intro``       -> ``01``
+      - ``slide_01_intro`` -> ``01``
+      - ``P1_intro``       -> ``01``
+      - ``01 封面``         -> ``01``  (notes-heading form, space separator)
+      - ``01封面``          -> ``01``  (notes-heading form, no separator)
+    Falls back to the raw stem when no leading slide number is present.
+
+    False positives are avoided because the optional ``slide_``/``P`` prefix
+    must be immediately followed by digits (``Performance``, ``Plan1`` -> no match).
+    """
+    match = re.match(r"^(?:slide_|P)?(\d+)", stem)
+    if match:
+        return match.group(1).zfill(2)
+    return stem
+
+
 def slide_sort_key(path: Path) -> tuple[int, str]:
-    match = re.match(r"^(\d+)[_\-]?(.*)$", path.stem)
+    match = re.match(r"^(?:slide_|P)?(\d+)[_\-]?(.*)$", path.stem)
     if match:
         return (int(match.group(1)), match.group(2))
     return (10**9, path.stem)
@@ -255,8 +281,7 @@ def parse_notes_total(project_path: Path) -> dict[str, dict]:
         if not lines or not lines[0].startswith("# "):
             continue
         heading = lines[0][2:].strip()
-        key_match = re.match(r"^(\d+)", heading)
-        key = key_match.group(1).zfill(2) if key_match else heading
+        key = slide_key(heading)
 
         script_lines: list[str] = []
         key_points = ""
@@ -291,7 +316,7 @@ def build_default_asset_map(spec: dict) -> dict[str, list[dict]]:
             entries.append(
                 {
                     "filename": name,
-                    "status": asset_meta.get("Status", "Unspecified"),
+                    "status": asset_meta.get("Status", DEFAULT_ASSET_STATUS),
                     "type": asset_meta.get("Type", ""),
                     "purpose": asset_meta.get("Purpose", ""),
                     "source_path": f"images/{name}",

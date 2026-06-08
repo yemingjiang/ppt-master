@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import sys
 from pathlib import Path
 
 from main_content_pipeline import (
@@ -79,10 +80,18 @@ def main() -> int:
     content_exists = content_path.exists()
     model = parse_main_content(project_path, spec)
     design_spec_status = "unchanged"
+    design_spec_warning: str | None = None
     if content_exists:
-        sync_design_spec_from_main_content(project_path, spec, model)
-        spec = parse_design_spec(project_path)
-        design_spec_status = "synced_from_main_content"
+        try:
+            sync_design_spec_from_main_content(project_path, spec, model)
+            spec = parse_design_spec(project_path)
+            design_spec_status = "synced_from_main_content"
+        except ValueError as exc:
+            # The outline section could not be located — do NOT silently
+            # report success. Surface it and continue with the other docs.
+            design_spec_status = "sync_failed"
+            design_spec_warning = str(exc)
+            print(f"WARNING: {exc}", file=sys.stderr)
 
     outputs: dict[str, dict[str, str]] = {}
     default_mode = not (args.style_sheet_only or args.asset_manifest_only or args.main_content_only)
@@ -106,12 +115,14 @@ def main() -> int:
         outputs["asset_manifest"] = {"path": str(asset_path), "status": asset_status}
 
     payload = {
-        "status": "ok",
+        "status": "ok" if design_spec_warning is None else "warning",
         "project_path": str(project_path),
         "project_name": spec["project_name"],
         "design_spec_status": design_spec_status,
         "outputs": outputs,
     }
+    if design_spec_warning is not None:
+        payload["design_spec_warning"] = design_spec_warning
 
     if args.json:
         print(json.dumps(payload, ensure_ascii=False, indent=2))
@@ -119,7 +130,8 @@ def main() -> int:
         print(f"Project: {project_path}")
         for name, info in outputs.items():
             print(f"{name}: {info['status']} -> {info['path']}")
-    return 0
+        print(f"design_spec: {design_spec_status}")
+    return 0 if design_spec_warning is None else 1
 
 
 if __name__ == "__main__":

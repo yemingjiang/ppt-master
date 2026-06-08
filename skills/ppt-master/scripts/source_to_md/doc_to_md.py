@@ -190,9 +190,25 @@ def _download_remote_image(url: str, media_dir: Path, index: int) -> str | None:
         import requests
     except ImportError:
         return None
+    if urlparse(url).scheme.lower() not in ("http", "https"):
+        return None
+    max_bytes = 64 * 1024 * 1024  # 64 MiB cap to avoid memory exhaustion
     try:
         resp = requests.get(url, timeout=10, stream=True)
         resp.raise_for_status()
+        declared = resp.headers.get("Content-Length")
+        if declared is not None and int(declared) > max_bytes:
+            return None
+        chunks = []
+        total = 0
+        for chunk in resp.iter_content(chunk_size=65536):
+            if not chunk:
+                continue
+            total += len(chunk)
+            if total > max_bytes:
+                return None
+            chunks.append(chunk)
+        data = b"".join(chunks)
     except Exception:
         return None
     content_type = resp.headers.get("Content-Type", "").split(";")[0].strip()
@@ -202,7 +218,7 @@ def _download_remote_image(url: str, media_dir: Path, index: int) -> str | None:
     if ext == ".jpe":
         ext = ".jpg"
     filename = f"image_{index:03d}{ext}"
-    (media_dir / filename).write_bytes(resp.content)
+    (media_dir / filename).write_bytes(data)
     return filename
 
 

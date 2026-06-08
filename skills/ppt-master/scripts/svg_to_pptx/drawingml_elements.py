@@ -462,7 +462,10 @@ def convert_path(elem: ET.Element, ctx: ConvertContext) -> ShapeResult | None:
             rot = int(float(r_match.group(1)) * ANGLE_UNIT)
 
     path_xml, min_x, min_y, width, height = path_commands_to_drawingml(
-        commands, ctx.translate_x + tx, ctx.translate_y + ty,
+        commands,
+        # tx/ty are in this element's parent (ctx-scaled) space, so they must
+        # be pre-multiplied by the inherited scale before adding to the offset.
+        ctx.translate_x + tx * ctx.scale_x, ctx.translate_y + ty * ctx.scale_y,
         ctx.scale_x, ctx.scale_y,
     )
 

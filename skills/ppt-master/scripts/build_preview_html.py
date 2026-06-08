@@ -12,7 +12,7 @@ import time
 from pathlib import Path
 
 from main_content_pipeline import parse_main_content
-from skeleton_utils import parse_asset_manifest, parse_design_spec, parse_notes_total, slide_sort_key
+from skeleton_utils import parse_asset_manifest, parse_design_spec, parse_notes_total, slide_key, slide_sort_key
 
 
 STRINGS = {
@@ -131,8 +131,7 @@ def build_entries(project_path: Path, output_path: Path, source_dir_name: str) -
 
     entries: list[dict] = []
     for svg_file in svg_files:
-        key_match = re.match(r"^(\d+)", svg_file.stem)
-        key = key_match.group(1).zfill(2) if key_match else svg_file.stem
+        key = slide_key(svg_file.stem)
         slide_spec = slide_by_key.get(key, {})
         slide_content = content_by_key.get(key, {})
         notes = notes_map.get(key, {})

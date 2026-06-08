@@ -22,10 +22,9 @@ import threading
 from openai import OpenAI
 from image_backends.backend_common import (
     MAX_RETRIES,
-    is_rate_limit_error,
     normalize_image_size,
     resolve_output_path,
-    retry_delay,
+    run_with_retries,
     save_image_bytes,
 )
 
@@ -189,25 +188,9 @@ def generate(prompt: str, negative_prompt: str = None,
             f"Supported: {supported}"
         )
 
-    last_error = None
-    for attempt in range(max_retries + 1):
-        try:
-            return _generate_image(api_key, prompt, negative_prompt,
-                                   aspect_ratio, image_size, output_dir,
-                                   filename, model, base_url)
-        except Exception as e:
-            last_error = e
-            if attempt < max_retries and is_rate_limit_error(e):
-                delay = retry_delay(attempt, rate_limited=True)
-                print(f"\n  [WARN] Rate limit hit (attempt {attempt + 1}/{max_retries + 1}). "
-                      f"Waiting {delay}s before retry...")
-                time.sleep(delay)
-            elif attempt < max_retries:
-                delay = retry_delay(attempt, rate_limited=False)
-                print(f"\n  [WARN] Error (attempt {attempt + 1}/{max_retries + 1}): {e}. "
-                      f"Retrying in {delay}s...")
-                time.sleep(delay)
-            else:
-                break
-
-    raise RuntimeError(f"Failed after {max_retries + 1} attempts. Last error: {last_error}")
+    return run_with_retries(
+        lambda: _generate_image(api_key, prompt, negative_prompt,
+                                aspect_ratio, image_size, output_dir,
+                                filename, model, base_url),
+        max_retries=max_retries,
+    )

@@ -497,4 +497,4 @@ Before switching roles, you **MUST first read** the corresponding reference file
 - `preview/index.html` opened via `file://` is the default review path; keep comments in the browser, use copy-all, then paste the review back to Codex
 - Standard handoff docs: `python3 ${SKILL_DIR}/scripts/generate_skeleton_docs.py <project_path> --overwrite`
 - Legacy direct export remains available, but it is no longer the default completion path
-- **Troubleshooting**: If the user encounters issues during generation (layout overflow, export errors, blank images, etc.), recommend checking `docs/faq.md` — it contains known solutions sourced from real user reports and is continuously updated
+- **Troubleshooting**: If the user encounters issues during generation (layout overflow, export errors, blank images, etc.), recommend checking `scripts/docs/troubleshooting.md` — it covers validation failures, preview/notes-split problems, and final-deck quality issues

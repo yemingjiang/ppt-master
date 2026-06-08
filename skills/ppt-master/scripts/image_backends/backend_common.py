@@ -6,6 +6,7 @@ Shared helpers for image generation backends.
 import io
 import os
 import time
+from urllib.parse import urlparse
 
 import requests
 
@@ -19,6 +20,41 @@ except ImportError:
 MAX_RETRIES = 3
 RETRY_BASE_DELAY = 10
 RETRY_BACKOFF = 2
+
+# Hard cap on a single downloaded image to avoid memory exhaustion from a
+# hostile or buggy endpoint returning a multi-GB body. 64 MiB is far above
+# any legitimate generated image.
+MAX_DOWNLOAD_BYTES = 64 * 1024 * 1024
+
+
+def _read_capped(response, max_bytes: int = MAX_DOWNLOAD_BYTES) -> bytes:
+    """Read a streamed response body, aborting if it exceeds max_bytes.
+
+    Checks the advertised Content-Length first (cheap rejection), then enforces
+    the cap while streaming in case the header is missing or lies.
+    """
+    declared = response.headers.get("Content-Length")
+    if declared is not None:
+        try:
+            if int(declared) > max_bytes:
+                raise ValueError(
+                    f"refusing to download {int(declared)} bytes "
+                    f"(exceeds cap of {max_bytes})"
+                )
+        except (TypeError, ValueError) as exc:
+            if "exceeds cap" in str(exc):
+                raise
+
+    chunks = []
+    total = 0
+    for chunk in response.iter_content(chunk_size=65536):
+        if not chunk:
+            continue
+        total += len(chunk)
+        if total > max_bytes:
+            raise ValueError(f"download exceeded size cap of {max_bytes} bytes")
+        chunks.append(chunk)
+    return b"".join(chunks)
 
 
 def resolve_output_path(prompt: str, output_dir: str = None,
@@ -175,12 +211,52 @@ def retry_delay(attempt: int, rate_limited: bool) -> int:
     return 5
 
 
+# Errors that can never succeed on retry — bad arguments, missing input files.
+# Retrying these just wastes time (and, on paid providers, may re-bill).
+FATAL_ERROR_TYPES = (ValueError, FileNotFoundError, NotADirectoryError, IsADirectoryError)
+
+
+def run_with_retries(generate_once, *, max_retries: int = MAX_RETRIES):
+    """Run a zero-arg generation closure with the shared retry policy.
+
+    Retries transient/rate-limit failures with backoff, but re-raises
+    immediately for FATAL_ERROR_TYPES (e.g. an unsupported aspect ratio),
+    which would only fail again on retry.
+    """
+    last_error = None
+    for attempt in range(max_retries + 1):
+        try:
+            return generate_once()
+        except FATAL_ERROR_TYPES:
+            raise
+        except Exception as exc:
+            last_error = exc
+            if attempt >= max_retries:
+                break
+            limited = is_rate_limit_error(exc)
+            delay = retry_delay(attempt, rate_limited=limited)
+            label = "Rate limit hit" if limited else f"Error: {exc}"
+            print(f"\n  [WARN] {label}. Retrying in {delay}s...")
+            time.sleep(delay)
+
+    raise RuntimeError(
+        f"Failed after {max_retries + 1} attempts. Last error: {last_error}"
+    )
+
+
 def download_image(url: str, path: str, headers: dict = None, timeout: int = 180) -> str:
-    """Download an image URL and save it to disk."""
-    response = requests.get(url, headers=headers or {}, timeout=timeout)
+    """Download an image URL and save it to disk.
+
+    Streams the body with a size cap (MAX_DOWNLOAD_BYTES) to avoid memory
+    exhaustion, and only accepts http/https URLs.
+    """
+    if urlparse(url).scheme.lower() not in ("http", "https"):
+        raise ValueError(f"refusing to download non-http(s) URL: {url!r}")
+    response = requests.get(url, headers=headers or {}, timeout=timeout, stream=True)
     response.raise_for_status()
+    data = _read_capped(response)
     return save_image_bytes(
-        response.content,
+        data,
         path,
         content_type=response.headers.get("Content-Type"),
     )

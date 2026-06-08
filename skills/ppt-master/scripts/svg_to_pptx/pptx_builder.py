@@ -179,6 +179,9 @@ def create_pptx_with_native_svg(
         has_any_image = False
         media_cache: dict[tuple[str, str], str] = {}
         notes_slides_created: set[int] = set()
+        # (slide_name, dropped_count) for slides where some elements failed
+        # to convert — surfaced in the summary so partial slides are visible.
+        slides_with_dropped_elements: list[tuple[str, int]] = []
 
         for i, svg_path in enumerate(svg_files, 1):
             slide_num = i
@@ -186,9 +189,11 @@ def create_pptx_with_native_svg(
             try:
                 # ---- Native shapes mode ----
                 if use_native_shapes:
-                    slide_xml, media_files_dict, rel_entries = convert_svg_to_slide_shapes(
+                    slide_xml, media_files_dict, rel_entries, slide_errors = convert_svg_to_slide_shapes(
                         svg_path, slide_num=slide_num, verbose=verbose,
                     )
+                    if slide_errors:
+                        slides_with_dropped_elements.append((svg_path.name, len(slide_errors)))
 
                     # Add transition if specified
                     if transition and ANIMATIONS_AVAILABLE and create_transition_xml:
@@ -348,8 +353,9 @@ def create_pptx_with_native_svg(
                 success_count += 1
 
             except Exception as e:
-                if verbose:
-                    print(f"  [{i}/{len(svg_files)}] {svg_path.name} - Error: {e}")
+                # A slide that fully fails must be visible regardless of
+                # verbosity — it leaves a blank slide in the output deck.
+                print(f"  [{i}/{len(svg_files)}] {svg_path.name} - FAILED: {e}")
 
         # Update [Content_Types].xml
         content_types_path = extract_dir / '[Content_Types].xml'
@@ -401,6 +407,17 @@ def create_pptx_with_native_svg(
                 print(f"  Mode: Office compatibility mode (supports all Office versions)")
                 if PNG_RENDERER == 'svglib' and renderer_hint:
                     print(f"  [Tip] {renderer_hint}")
+
+        # Surface partial-slide degradation regardless of verbosity: these
+        # slides were written but are missing elements that failed to convert.
+        if slides_with_dropped_elements:
+            total_dropped = sum(n for _, n in slides_with_dropped_elements)
+            print(
+                f"  ⚠ {total_dropped} element(s) across "
+                f"{len(slides_with_dropped_elements)} slide(s) were dropped during conversion:"
+            )
+            for name, n in slides_with_dropped_elements:
+                print(f"      - {name}: {n} element(s) dropped")
 
         return success_count == len(svg_files)
 

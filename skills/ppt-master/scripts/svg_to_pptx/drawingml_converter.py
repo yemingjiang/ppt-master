@@ -185,7 +185,9 @@ def convert_element(elem: ET.Element, ctx: ConvertContext) -> ShapeResult | None
         try:
             return converter(elem, ctx)
         except Exception as e:
-            print(f'  Warning: Failed to convert <{tag}>: {e}')
+            msg = f'Failed to convert <{tag}>: {e}'
+            ctx.errors.append(msg)
+            print(f'  Warning: {msg}')
             return None
 
     if tag in _NON_VISUAL_TAGS:
@@ -198,7 +200,7 @@ def convert_svg_to_slide_shapes(
     svg_path: Path,
     slide_num: int = 1,
     verbose: bool = False,
-) -> tuple[str, dict[str, bytes], list[dict[str, str]]]:
+) -> tuple[str, dict[str, bytes], list[dict[str, str]], list[str]]:
     """Convert an SVG file to a complete DrawingML slide XML.
 
     Args:
@@ -207,10 +209,12 @@ def convert_svg_to_slide_shapes(
         verbose: Print progress info.
 
     Returns:
-        (slide_xml, media_files, rel_entries) where:
+        (slide_xml, media_files, rel_entries, errors) where:
         - slide_xml: Complete slide XML string.
         - media_files: Dict of {filename: bytes} for media to write.
         - rel_entries: List of relationship entries to add.
+        - errors: List of conversion-failure messages (empty on full success),
+          including failures nested inside groups.
     """
     tree = ET.parse(str(svg_path))
     root = tree.getroot()
@@ -236,6 +240,10 @@ def convert_svg_to_slide_shapes(
 
     if verbose:
         print(f'  Converted {converted} elements, skipped {skipped}')
+        if ctx.errors:
+            print(f'  ⚠ {len(ctx.errors)} element(s) FAILED to convert and were dropped:')
+            for msg in ctx.errors:
+                print(f'      - {msg}')
 
     shapes_xml = '\n'.join(shapes)
 
@@ -259,4 +267,4 @@ def convert_svg_to_slide_shapes(
 <p:clrMapOvr><a:masterClrMapping/></p:clrMapOvr>
 </p:sld>'''
 
-    return slide_xml, ctx.media_files, ctx.rel_entries
+    return slide_xml, ctx.media_files, ctx.rel_entries, ctx.errors

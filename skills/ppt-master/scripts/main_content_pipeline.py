@@ -8,6 +8,7 @@ import re
 from pathlib import Path
 
 from skeleton_utils import (
+    DEFAULT_ASSET_STATUS,
     build_asset_manifest_markdown,
     clean_md_inline,
     parse_design_spec,
@@ -40,7 +41,7 @@ def spec_to_main_content_model(spec: dict) -> dict:
             entries.append(
                 {
                     "filename": name,
-                    "status": asset_meta.get("Status", "Existing"),
+                    "status": asset_meta.get("Status", DEFAULT_ASSET_STATUS),
                     "type": asset_meta.get("Type", ""),
                     "purpose": asset_meta.get("Purpose", ""),
                     "source_path": f"images/{name}",
@@ -290,12 +291,22 @@ def sync_design_spec_from_main_content(project_path: Path, spec: dict, model: di
     spec_path = project_path / "design_spec.md"
     text = spec["design_spec_text"]
     new_section = build_content_outline_from_model(spec, model)
-    new_text = re.sub(
-        r"^## IX\. Content Outline\n.*?(?=^## X\. Speaker Notes Requirements)",
-        new_section + "\n\n",
+    # Replace the Content Outline section, stopping at the next top-level
+    # section heading or end-of-file. Anchoring on a specific following
+    # section (e.g. "## X.") silently no-ops when that heading is absent,
+    # renamed, or when the outline is the last section — dropping edits.
+    new_text, count = re.subn(
+        r"^## IX\. Content Outline\n.*?(?=^## \S|\Z)",
+        new_section.rstrip() + "\n\n",
         text,
         flags=re.M | re.S,
     )
+    if count == 0:
+        raise ValueError(
+            f"Could not locate '## IX. Content Outline' in {spec_path}; "
+            "design spec was NOT updated. Ensure the spec follows the "
+            "design_spec_reference.md section structure."
+        )
     spec_path.write_text(new_text, encoding="utf-8")
     return spec_path
 
