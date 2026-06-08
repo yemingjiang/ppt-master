@@ -12,7 +12,7 @@
 ---
 丢进一份 PDF、DOCX、网址或 Markdown，先拿回一份**可审稿的演示骨架**（`main_content.md`、`design_spec.md`、`preview/index.html`），结构确认后再生成**原生可编辑的 PowerPoint**。
 
-> **运作方式** —— PPT Master 是一套在 AI IDE（Claude Code / Cursor / VS Code + Copilot / Codebuddy 等）里运行的工作流（一个 "skill"）。你在 IDE 的对话框里跟 AI 说"用这份 PDF 做一份 PPT"，AI 会先在你本机生成可审稿骨架和 HTML 草稿；骨架确认后，同一个工作流会自动衔接进 native-editable 重建步骤产出最终 `.pptx`。你不写任何代码——IDE 只是你和 AI 对话的地方。
+> **运作方式** —— PPT Master 是一套为**人机协作**设计的工作流（一个 "skill"），主要在 **Codex app** 中使用（也支持 Claude Code / Cursor / VS Code + Copilot 等 AI IDE）。你在对话框里跟 AI 说"用这份 PDF 做一份 PPT"，AI 会先在你本机生成可审稿骨架和 **HTML 草稿**；然后你在 Codex app 里直接打开这份 HTML 草稿，**逐页翻看并在浏览器里批注**（改标题、改收口、换素材、调页序），点 **"复制全部批注"**，把批注粘回对话框。AI 据此修改并重新生成草稿——你和它一轮轮迭代，直到结构满意。**只有在你确认之后**，同一个工作流才会自动衔接进 native-editable 重建步骤产出最终 `.pptx`。你不写任何代码——IDE 只是你和 AI 对话的地方。
 >
 > **你要做的**：装 Python、装一个 AI IDE、把资料放进来。第一次配置约 15 分钟；之后每做一份 PPT 大约 10–20 分钟的聊天。
 
@@ -21,6 +21,7 @@
 PPT Master 不一样：
 
 - **先审结构，再出成品** — 不假设 AI 一次就能完成所有细修，而是先把结构、结论、素材审清楚，再生成最终可编辑成品
+- **你全程在环** — 在 Codex app 里审阅 HTML 草稿，直接在浏览器里批注每一页，把批注复制回对话框与 AI 迭代，结构锁定后才进行最终渲染
 - **真正的 PPT** — 推荐的最终交付路径是 native editable 重建，而不是截图式导出或网页快照
 - **成本透明可控** — 工具免费开源，唯一成本是你自己的 AI 编辑器，花了多少钱你清清楚楚。VS Code Copilot 下最低 **$0.08/份**
 - **数据不出本地** — 你的文件不应该为了做一份 PPT 就被上传到别人的服务器。除与 AI 模型的对话外，全流程在你的电脑上完成
@@ -88,6 +89,7 @@ sudo apt install pandoc
 
 | 工具 | 推荐度 | 说明 |
 |------|:------:|------|
+| **[Codex app](https://openai.com/codex/)** | ⭐⭐⭐ | 主力体验——在 app 内打开 HTML 草稿、浏览器里批注每页、与 AI 迭代后再渲染 |
 | **[Claude Code](https://claude.ai/)** | ⭐⭐⭐ | 效果最佳——原生 Opus，上下文最充裕 |
 | [Cursor](https://cursor.sh/) / [VS Code + Copilot](https://code.visualstudio.com/) | ⭐⭐ | 不错的替代方案 |
 | Codebuddy IDE | ⭐⭐ | 国产模型最佳选择（Kimi 2.5、MiniMax-M2.7） |
@@ -139,9 +141,16 @@ AI：好的，先确认设计规范：
    ...
 ```
 
-AI 端到端跑完整条流水线——内容分析、设计规范、SVG 骨架、配套 handoff 文件和 HTML 审稿页；骨架确认后，同一工作流会自动衔接进 native editable 重建阶段产出最终 `.pptx`。
+AI 端到端跑完整条流水线——内容分析、设计规范、SVG 骨架、配套 handoff 文件和 HTML 审稿页——然后**停下来等你审稿**。这一步就是人机协作的核心：
 
-> **默认输出：** 项目目录中的可审稿骨架包——`main_content.md`、`design_spec.md`、`style_sheet.md`、`asset_manifest.md`、`notes/`、`svg_output/` 和 `preview/index.html`。
+1. 在 Codex app 里打开 `preview/index.html`（AI 会给你一个可点击的链接）。
+2. 逐页翻看并**直接在浏览器里批注**——批注会随手保存在本地。可调整标题、收口、要点、素材、页序或风格方向。
+3. 点 **"复制全部批注"**，把批注粘回对话框。
+4. AI 据此修改、重新生成草稿，如此往复，直到骨架满意为止。
+
+结构锁定后，工作流会自动衔接进 native editable 重建阶段产出最终 `.pptx`。
+
+> **默认输出：** 项目目录中的可审稿骨架包——`main_content.md`、`design_spec.md`、`style_sheet.md`、`asset_manifest.md`、`notes/`、`svg_output/` 和 `preview/index.html`（你审阅并批注的草稿）。
 >
 > **最终可编辑输出：** 骨架确认后，ppt-master 自动进入内置的[原生可编辑重建步骤](./skills/ppt-master/references/native-editable.md)生成最终 `.pptx`。
 >

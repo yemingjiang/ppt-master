@@ -21,13 +21,14 @@ English | [中文](./README_CN.md)
 
 Drop in a PDF, DOCX, URL, or Markdown — get back a **reviewable presentation skeleton first** (`main_content.md`, `design_spec.md`, `preview/index.html`), then a **native-editable PowerPoint** when the structure is approved.
 
-> **How it works** — PPT Master is a workflow (a "skill") that works inside AI IDEs like Claude Code, Cursor, VS Code + Copilot, or Codebuddy. You chat with the AI — "make a deck from this PDF" — and it first builds a reviewable skeleton package and HTML draft on your computer. Once you approve the skeleton, the same workflow continues internally into a native editable rebuild step that produces the final `.pptx`. No coding on your side; the IDE is just where the conversation happens.
+> **How it works** — PPT Master is a workflow (a "skill") designed for human–AI collaboration inside the **Codex app** (and other AI IDEs like Claude Code, Cursor, or VS Code + Copilot). You chat with the AI — "make a deck from this PDF" — and it first builds a reviewable skeleton package and an **HTML draft** on your computer. You then open that HTML draft right in the Codex app, **flip through the slides and annotate them in your browser** (rename a title, sharpen a takeaway, swap an asset, reorder pages), click **"Copy all comments"**, and paste them back into the chat. The AI applies your comments and rebuilds the draft — you loop with it until the structure is right. **Only when you approve** does the same workflow continue internally into a native editable rebuild step that produces the final `.pptx`. No coding on your side; the IDE is just where the conversation happens.
 >
 > **What you'll do**: install Python, install an AI IDE, drop in your material. First-time setup is about 15 minutes. Each deck takes ~10–20 minutes of back-and-forth with the AI.
 
 PPT Master is different:
 
 - **Review-first, editable-final** — instead of pretending one pass can do everything, PPT Master gets the structure reviewed first and only then rebuilds the final deck natively for manual editing
+- **You stay in the loop** — review the HTML draft in the Codex app, annotate slides directly in the browser, copy your comments back to the AI, and iterate until the structure is locked before any final render
 - **Real PowerPoint where it matters** — the preferred final path is a native editable rebuild, not a screenshot export or a flattened web snapshot
 - **Transparent, predictable cost** — the tool is free and open source; the only cost is your own AI editor, and you know exactly what you're paying. As low as **$0.08/deck** with VS Code Copilot
 - **Data stays local** — your files shouldn't have to be uploaded to someone else's server just to make a presentation. Apart from AI model communication, the entire pipeline runs on your machine
@@ -94,6 +95,7 @@ sudo apt install pandoc
 
 | Tool | Rating | Notes |
 |------|:------:|-------|
+| **[Codex app](https://openai.com/codex/)** | ⭐⭐⭐ | Primary experience — open the HTML draft in-app, annotate slides in the browser, and iterate with the AI before rendering |
 | **[Claude Code](https://claude.ai/)** | ⭐⭐⭐ | Best results — native Opus, largest context |
 | [Cursor](https://cursor.sh/) / [VS Code + Copilot](https://code.visualstudio.com/) | ⭐⭐ | Good alternatives |
 | Codebuddy IDE | ⭐⭐ | Best for Chinese models (Kimi 2.5, MiniMax-M2.7) |
@@ -141,9 +143,16 @@ AI:  Sure. Let's confirm the design spec:
      ...
 ```
 
-The AI handles the full pipeline end-to-end — content analysis, design spec, SVG skeleton generation, support files, and HTML review draft — pauses for your skeleton review, then continues internally into the native editable rebuild step to produce the final `.pptx`.
+The AI handles the full pipeline end-to-end — content analysis, design spec, SVG skeleton generation, support files, and HTML review draft — then **pauses for your review**. This is where you collaborate:
 
-> **Default output:** a reviewable skeleton package in the project directory — `main_content.md`, `design_spec.md`, `style_sheet.md`, `asset_manifest.md`, `notes/`, `svg_output/`, and `preview/index.html`.
+1. Open `preview/index.html` in the Codex app (the AI gives you a clickable link).
+2. Flip through the slides and **annotate them directly in the browser** — comments are saved locally as you go. Adjust titles, takeaways, bullets, assets, page order, or style direction.
+3. Click **"Copy all comments"** and paste them back into the chat.
+4. The AI applies your comments, rebuilds the draft, and you repeat until the skeleton is right.
+
+Once you confirm the structure is locked, the workflow continues internally into the native editable rebuild step to produce the final `.pptx`.
+
+> **Default output:** a reviewable skeleton package in the project directory — `main_content.md`, `design_spec.md`, `style_sheet.md`, `asset_manifest.md`, `notes/`, `svg_output/`, and `preview/index.html` (the draft you review and annotate).
 >
 > **Final editable output:** once you approve the skeleton, ppt-master continues automatically into its built-in [native editable rebuild step](./skills/ppt-master/references/native-editable.md) to produce the final `.pptx`.
 >
