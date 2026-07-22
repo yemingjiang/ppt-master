@@ -2,15 +2,20 @@
 
 from __future__ import annotations
 
+import argparse
 import base64
 import html
 import json
 import mimetypes
+import os
 import re
+import tempfile
 from pathlib import Path
 from urllib.parse import unquote, urlsplit
 
 from bs4 import BeautifulSoup, Comment, NavigableString
+
+from skeleton_utils import parse_notes_total
 
 
 SKILL_DIR = Path(__file__).resolve().parent.parent
@@ -134,7 +139,9 @@ class OfflineResourcePackager:
 
         media_type = _EXPLICIT_MEDIA_TYPES.get(path.suffix.lower())
         if media_type is None:
-            media_type = mimetypes.guess_type(path.name)[0] or "application/octet-stream"
+            media_type = mimetypes.guess_type(path.name)[0]
+        if media_type is None:
+            raise PackagingError(f"unsupported or indeterminate MIME type for resource: {path}")
         encoded = base64.b64encode(contents).decode("ascii")
         self.embedded_count += 1
         return f"data:{media_type};base64,{encoded}"
@@ -424,3 +431,175 @@ def render_document(
     }
     shell = _read_presentation_asset("shell.html")
     return re.sub(r"\{\{([A-Z_]+)\}\}", lambda match: replacements[match.group(1)], shell)
+
+
+def _read_text(path: Path, label: str) -> str:
+    try:
+        return path.read_text(encoding="utf-8")
+    except FileNotFoundError as error:
+        raise PackagingError(f"{label} not found: {path}") from error
+    except OSError as error:
+        raise PackagingError(f"unable to read {label}: {path}") from error
+
+
+def _build_notes(manifest: dict[str, object], project_path: Path) -> dict[str, dict]:
+    notes_by_key = parse_notes_total(project_path)
+    notes: dict[str, dict] = {}
+    slides = manifest.get("slides")
+    if not isinstance(slides, list):
+        raise PackagingError("slides must be an array")
+    for index, item in enumerate(slides):
+        slide = _require_mapping(item, f"slides[{index}]")
+        slide_id = _require_string(slide, "id", f"slides[{index}].id")
+        notes_key = slide.get("notes_key", slide_id)
+        if not isinstance(notes_key, str) or not notes_key:
+            raise PackagingError(f"slides[{index}].notes_key must be a non-empty string")
+        notes[slide_id] = notes_by_key.get(notes_key, {})
+    return notes
+
+
+def _validate_offline_document(document: str) -> None:
+    """Reject remaining local or remote runtime resource references before writing."""
+    soup = BeautifulSoup(document, "html.parser")
+    for tag_name, attributes in RESOURCE_ATTRS.items():
+        for tag in soup.find_all(tag_name):
+            for attribute in attributes:
+                reference = tag.get(attribute)
+                if not reference:
+                    continue
+                if attribute == "srcset":
+                    references = [candidate.strip().split(maxsplit=1)[0] for candidate in OfflineResourcePackager._split_srcset(reference)]
+                else:
+                    references = [reference]
+                for item in references:
+                    if not item.strip().lower().startswith("data:"):
+                        raise PackagingError(f"unresolved runtime resource remains in output: {item}")
+
+    for iframe in soup.find_all("iframe"):
+        reference = iframe.get("src")
+        if reference and not reference.strip().lower().startswith("data:text/html;base64,"):
+            raise PackagingError(f"unresolved iframe remains in output: {reference}")
+    for link in soup.find_all("link"):
+        rel = {value.lower() for value in link.get("rel", [])}
+        if "stylesheet" in rel:
+            raise PackagingError(f"unresolved stylesheet remains in output: {link.get('href', '')}")
+    for script in soup.find_all("script"):
+        if script.get("src"):
+            raise PackagingError(f"unresolved script remains in output: {script['src']}")
+
+
+def _default_output_path(project_path: Path) -> Path:
+    return project_path / "exports" / f"{project_path.name}.single.html"
+
+
+def _write_atomically(output_path: Path, document: str) -> int:
+    """Write a complete document beside its target, then replace the target once."""
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    temporary_path: Path | None = None
+    try:
+        with tempfile.NamedTemporaryFile(
+            mode="w",
+            encoding="utf-8",
+            dir=output_path.parent,
+            prefix=f".{output_path.name}.",
+            suffix=".tmp",
+            delete=False,
+        ) as temporary_file:
+            temporary_path = Path(temporary_file.name)
+            temporary_file.write(document)
+            temporary_file.flush()
+            os.fsync(temporary_file.fileno())
+        os.replace(temporary_path, output_path)
+        temporary_path = None
+    finally:
+        if temporary_path is not None:
+            try:
+                temporary_path.unlink()
+            except FileNotFoundError:
+                pass
+    return output_path.stat().st_size
+
+
+def build_single_html(project_path: Path, output_path: Path | None = None) -> dict[str, object]:
+    """Build an offline, self-contained HTML presentation without altering a prior target on failure."""
+    project_path = project_path.resolve()
+    manifest = load_manifest(project_path)
+    packager = OfflineResourcePackager(project_path)
+    html_output = project_path / "html_output"
+
+    project_css_path = html_output / "presentation.css"
+    project_css = packager.rewrite_css(_read_text(project_css_path, "project stylesheet"), project_css_path)
+    slides: list[str] = []
+    manifest_slides = manifest.get("slides")
+    if not isinstance(manifest_slides, list):
+        raise PackagingError("slides must be an array")
+    for index, item in enumerate(manifest_slides):
+        slide = _require_mapping(item, f"slides[{index}]")
+        slide_id = _require_string(slide, "id", f"slides[{index}].id")
+        file_name = _require_string(slide, "file", f"slides[{index}].file")
+        source_path = (html_output / file_name).resolve()
+        _project_local_path(project_path, source_path, f"slides[{index}].file")
+        fragment = validate_slide_fragment(_read_text(source_path, "slide fragment"), slide_id, source_path)
+        slides.append(packager.rewrite_html(fragment, source_path))
+
+    document = render_document(manifest, slides, project_css, _build_notes(manifest, project_path))
+    _validate_offline_document(document)
+    output_path = (output_path or _default_output_path(project_path)).resolve()
+    bytes_written = _write_atomically(output_path, document)
+    warnings = list(packager.warnings)
+    if bytes_written > 100 * 1024 * 1024:
+        warnings.append("Generated HTML exceeds 100 MB and may be slow to open in a browser.")
+    return {
+        "status": "ok",
+        "project_path": str(project_path),
+        "output_html": str(output_path),
+        "output_file_url": output_path.as_uri(),
+        "slides": len(slides),
+        "embedded_assets": packager.embedded_count,
+        "bytes": bytes_written,
+        "warnings": warnings,
+    }
+
+
+def parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(
+        description="Build an offline, self-contained HTML presentation from html_output/presentation.json.",
+        epilog=(
+            "Examples:\n"
+            "  python3 build_single_html.py projects/quarterly-review\n"
+            "  python3 build_single_html.py projects/quarterly-review --output exports/review.html\n"
+            "  python3 build_single_html.py projects/quarterly-review --json"
+        ),
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+    parser.add_argument("project_path", type=Path, help="Path to the presentation project directory.")
+    parser.add_argument(
+        "--output",
+        type=Path,
+        help="Output HTML file. Default: <project_path>/exports/<project_name>.single.html.",
+    )
+    parser.add_argument("--json", action="store_true", help="Print a single machine-readable JSON object.")
+    return parser.parse_args()
+
+
+def main() -> int:
+    args = parse_args()
+    try:
+        result = build_single_html(args.project_path, args.output)
+    except (OSError, PackagingError, ValueError) as error:
+        if args.json:
+            print(json.dumps({"status": "error", "error": str(error)}, ensure_ascii=False, separators=(",", ":")))
+        else:
+            print(f"Error: {error}", file=os.sys.stderr)
+        return 1
+    if args.json:
+        print(json.dumps(result, ensure_ascii=False, separators=(",", ":")))
+    else:
+        print(f"Built single-file HTML presentation: {result['output_html']}")
+        for warning in result["warnings"]:
+            print(f"Warning: {warning}", file=os.sys.stderr)
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

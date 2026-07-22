@@ -20,6 +20,7 @@ if str(SCRIPT_DIR) not in sys.path:
 from build_single_html import (
     OfflineResourcePackager,
     PackagingError,
+    build_single_html,
     load_manifest,
     render_document,
     validate_slide_fragment,
@@ -537,6 +538,139 @@ class OfflineResourcePackagerTests(ProjectFixture):
             packager.rewrite_html(
                 '<iframe src="../../interactive/a.html"></iframe>', self.slide_path
             )
+
+    def test_rejects_resources_without_a_determinate_media_type(self) -> None:
+        unknown = self.images / "required-resource.unknown"
+        unknown.write_bytes(b"unknown")
+        packager = OfflineResourcePackager(self.project)
+
+        with self.assertRaisesRegex(PackagingError, "MIME type"):
+            packager.rewrite_html('<img src="../../images/required-resource.unknown">', self.slide_path)
+
+
+class BuildSingleHtmlTests(ProjectFixture):
+    def setUp(self) -> None:
+        super().setUp()
+        self.write_manifest(MANIFEST)
+        (self.project / "images").mkdir()
+        (self.project / "images" / "chart.png").write_bytes(b"\x89PNG\r\n\x1a\nchart")
+        (self.project / "images" / "demo.woff2").write_bytes(b"woff2-demo")
+        interactive = self.project / "interactive"
+        interactive.mkdir()
+        (interactive / "widget.css").write_text(
+            '.widget { background: url("../images/chart.png"); }', encoding="utf-8"
+        )
+        (interactive / "widget.js").write_text("window.widgetReady = true;", encoding="utf-8")
+        (interactive / "widget.html").write_text(
+            '<link rel="stylesheet" href="widget.css"><img src="../images/chart.png">'
+            '<script src="widget.js"></script>',
+            encoding="utf-8",
+        )
+        (self.project / "html_output" / "presentation.css").write_text(
+            '@font-face { src: url("../images/demo.woff2"); }\n'
+            '.hero { background-image: url("../images/chart.png"); }',
+            encoding="utf-8",
+        )
+        (self.project / "html_output" / "slides" / "01_cover.html").write_text(
+            '<section class="pm-slide" data-slide-id="01"><img src="../../images/chart.png">'
+            '<iframe src="../../interactive/widget.html"></iframe>'
+            '<a href="https://example.test/brief">Read more</a></section>',
+            encoding="utf-8",
+        )
+        (self.project / "html_output" / "slides" / "02_overview.html").write_text(
+            '<section class="pm-slide" data-slide-id="02">Overview</section>', encoding="utf-8"
+        )
+        (self.project / "notes" / "total.md").write_text(
+            "# 01 Cover\nOpening speaker notes\n---\n# 02 Overview\nClosing speaker notes\n",
+            encoding="utf-8",
+        )
+
+    def test_builds_a_stable_offline_document_with_hidden_notes(self) -> None:
+        result = build_single_html(self.project)
+        output = self.project / "exports" / f"{self.project.name}.single.html"
+        document = output.read_text(encoding="utf-8")
+
+        self.assertEqual(result["status"], "ok")
+        self.assertEqual(Path(result["output_html"]), output.resolve())
+        self.assertEqual(result["output_file_url"], output.resolve().as_uri())
+        self.assertEqual(result["slides"], 2)
+        self.assertGreaterEqual(result["embedded_assets"], 4)
+        self.assertEqual(result["warnings"], [])
+        self.assertIn("Opening speaker notes", document)
+        self.assertIn('id="pmNotesPanel"', document)
+        self.assertIn("hidden", document)
+        self.assertIn('href="https://example.test/brief"', document)
+        for unresolved in (
+            "../images/",
+            "widget.html",
+            "widget.css",
+            "widget.js",
+            "presentation.css",
+            str(self.project),
+        ):
+            self.assertNotIn(unresolved, document)
+        self.assertNotIn("https://example.test/brief\" src", document)
+
+    def test_rerun_replaces_the_same_default_target(self) -> None:
+        first = build_single_html(self.project)
+        first_bytes = Path(first["output_html"]).read_bytes()
+        second = build_single_html(self.project)
+
+        self.assertEqual(first["output_html"], second["output_html"])
+        self.assertEqual(first_bytes, Path(second["output_html"]).read_bytes())
+        self.assertEqual(
+            list((self.project / "exports").glob("*.single.html")),
+            [self.project / "exports" / f"{self.project.name}.single.html"],
+        )
+
+    def test_failed_build_keeps_an_existing_target_byte_identical(self) -> None:
+        target = Path(build_single_html(self.project)["output_html"])
+        original = target.read_bytes()
+        (self.project / "html_output" / "slides" / "02_overview.html").write_text(
+            '<section class="pm-slide" data-slide-id="wrong">Broken</section>', encoding="utf-8"
+        )
+
+        with self.assertRaisesRegex(PackagingError, "data-slide-id"):
+            build_single_html(self.project)
+
+        self.assertEqual(target.read_bytes(), original)
+        self.assertEqual(list(target.parent.glob(f".{target.name}.*.tmp")), [])
+
+    def test_warns_when_the_generated_document_exceeds_100_mb(self) -> None:
+        (self.project / "html_output" / "presentation.css").write_text(
+            "/*" + ("x" * (100 * 1024 * 1024 + 1)) + "*/", encoding="utf-8"
+        )
+
+        result = build_single_html(self.project)
+
+        self.assertTrue(any("100 MB" in warning for warning in result["warnings"]))
+
+    def test_cli_json_is_one_object_with_clean_success_stderr(self) -> None:
+        completed = subprocess.run(
+            [sys.executable, str(SCRIPT_DIR / "build_single_html.py"), str(self.project), "--json"],
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+
+        self.assertEqual(completed.returncode, 0, completed.stderr)
+        payload = json.loads(completed.stdout)
+        self.assertEqual(payload["status"], "ok")
+        self.assertEqual(payload["slides"], 2)
+        self.assertEqual(completed.stderr, "")
+
+    def test_cli_invalid_project_reports_an_actionable_error_without_stdout(self) -> None:
+        missing_project = self.project / "missing"
+        completed = subprocess.run(
+            [sys.executable, str(SCRIPT_DIR / "build_single_html.py"), str(missing_project)],
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+
+        self.assertNotEqual(completed.returncode, 0)
+        self.assertEqual(completed.stdout, "")
+        self.assertIn("manifest not found", completed.stderr)
 
 
 if __name__ == "__main__":
