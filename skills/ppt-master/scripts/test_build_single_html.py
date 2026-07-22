@@ -8,6 +8,7 @@ import sys
 import tempfile
 import unittest
 from base64 import b64decode, b64encode
+from html import escape
 from pathlib import Path
 from unittest.mock import patch
 
@@ -532,6 +533,50 @@ class OfflineResourcePackagerTests(ProjectFixture):
         self.assertIn(self.data_uri("image/png", self.chart), child_html)
         self.assertNotIn("../images/", child_html)
 
+    def test_rewrites_srcdoc_with_local_assets_and_nested_local_iframe(self) -> None:
+        interactive = self.project / "interactive"
+        interactive.mkdir()
+        (interactive / "child.html").write_text(
+            '<img src="../images/chart.png">', encoding="utf-8"
+        )
+        srcdoc = '<img src="../../images/chart.png"><iframe src="../../interactive/child.html"></iframe>'
+        packager = OfflineResourcePackager(self.project)
+
+        rewritten = packager.rewrite_html(
+            f'<iframe srcdoc="{escape(srcdoc, quote=True)}"></iframe>', self.slide_path
+        )
+
+        outer = BeautifulSoup(rewritten, "html.parser").iframe
+        srcdoc_html = outer["srcdoc"]
+        self.assertIn(self.data_uri("image/png", self.chart), srcdoc_html)
+        nested = BeautifulSoup(srcdoc_html, "html.parser").iframe
+        child_html = b64decode(nested["src"].split(",", 1)[1]).decode("utf-8")
+        self.assertIn(self.data_uri("image/png", self.chart), child_html)
+        self.assertNotIn("../../images/", srcdoc_html)
+
+    def test_srcdoc_takes_precedence_and_removes_ignored_src(self) -> None:
+        srcdoc = '<img src="../../images/chart.png">'
+        packager = OfflineResourcePackager(self.project)
+
+        rewritten = packager.rewrite_html(
+            '<iframe src="../../interactive/does-not-need-to-exist.html" '
+            f'srcdoc="{escape(srcdoc, quote=True)}"></iframe>',
+            self.slide_path,
+        )
+
+        iframe = BeautifulSoup(rewritten, "html.parser").iframe
+        self.assertNotIn("src", iframe.attrs)
+        self.assertIn(self.data_uri("image/png", self.chart), iframe["srcdoc"])
+
+    def test_rejects_remote_runtime_resource_inside_srcdoc(self) -> None:
+        packager = OfflineResourcePackager(self.project)
+        srcdoc = '<img src="https://example.test/chart.png">'
+
+        with self.assertRaisesRegex(PackagingError, "remote runtime"):
+            packager.rewrite_html(
+                f'<iframe srcdoc="{escape(srcdoc, quote=True)}"></iframe>', self.slide_path
+            )
+
     def test_rejects_nested_iframe_cycles_with_ordered_paths(self) -> None:
         interactive = self.project / "interactive"
         interactive.mkdir()
@@ -616,6 +661,16 @@ class OfflineResourcePackagerTests(ProjectFixture):
             with self.subTest(document=document):
                 with self.assertRaises(PackagingError):
                     _validate_offline_document(document)
+
+    def test_final_validation_recursively_rejects_runtime_references_inside_srcdoc(self) -> None:
+        for srcdoc in (
+            '<img src="local.png">',
+            '<img src="https://example.test/chart.png">',
+            '<iframe src="nested.html"></iframe>',
+        ):
+            with self.subTest(srcdoc=srcdoc):
+                with self.assertRaises(PackagingError):
+                    _validate_offline_document(f'<iframe srcdoc="{escape(srcdoc, quote=True)}"></iframe>')
 
     def test_final_validation_allows_fragment_only_svg_references_and_external_anchors(self) -> None:
         _validate_offline_document(

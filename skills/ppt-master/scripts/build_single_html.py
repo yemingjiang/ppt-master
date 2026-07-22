@@ -286,6 +286,15 @@ class OfflineResourcePackager:
         self, soup: BeautifulSoup, source_path: Path, iframe_stack: tuple[Path, ...]
     ) -> None:
         for iframe in soup.find_all("iframe"):
+            if iframe.has_attr("srcdoc"):
+                srcdoc = iframe.get("srcdoc", "")
+                iframe["srcdoc"] = self.rewrite_html(
+                    srcdoc, source_path, (*iframe_stack, source_path)
+                )
+                # Browsers prioritize srcdoc over src. Removing the ignored fallback keeps the output policy explicit.
+                if iframe.has_attr("src"):
+                    del iframe["src"]
+                continue
             reference = iframe.get("src")
             if not reference or self._is_preserved_reference(reference):
                 continue
@@ -513,6 +522,9 @@ def _validate_offline_document(document: str) -> None:
                         raise PackagingError(f"unresolved runtime resource remains in output: {item}")
 
     for iframe in soup.find_all("iframe"):
+        if iframe.has_attr("srcdoc"):
+            _validate_offline_document(iframe.get("srcdoc", ""))
+            continue
         reference = iframe.get("src")
         if reference and not reference.strip().lower().startswith("data:text/html;base64,"):
             raise PackagingError(f"unresolved iframe remains in output: {reference}")
