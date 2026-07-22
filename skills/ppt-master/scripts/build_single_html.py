@@ -2,14 +2,216 @@
 
 from __future__ import annotations
 
+import base64
 import json
+import mimetypes
+import re
 from pathlib import Path
+from urllib.parse import unquote, urlsplit
 
 from bs4 import BeautifulSoup, Comment, NavigableString
 
 
 class PackagingError(ValueError):
     """Raised when presentation sources cannot be packaged safely."""
+
+
+RESOURCE_ATTRS = {
+    "img": ("src", "srcset"),
+    "video": ("src", "poster"),
+    "audio": ("src",),
+    "source": ("src", "srcset"),
+}
+
+REMOTE_SCHEMES = {"http", "https", "file", "blob"}
+
+_EXPLICIT_MEDIA_TYPES = {
+    ".woff2": "font/woff2",
+    ".woff": "font/woff",
+    ".ttf": "font/ttf",
+    ".otf": "font/otf",
+    ".mp4": "video/mp4",
+    ".webm": "video/webm",
+    ".mov": "video/quicktime",
+    ".mp3": "audio/mpeg",
+    ".wav": "audio/wav",
+    ".m4a": "audio/mp4",
+    ".js": "text/javascript",
+    ".css": "text/css",
+}
+
+_CSS_URL_PATTERN = re.compile(
+    r"url\(\s*(?P<quote>['\"]?)(?P<reference>.*?)(?P=quote)\s*\)", re.IGNORECASE
+)
+
+
+class OfflineResourcePackager:
+    """Embed project-local runtime assets into HTML and CSS data URIs."""
+
+    def __init__(self, project_root: Path) -> None:
+        self.project_root = project_root.resolve()
+        self.embedded_count = 0
+        self.warnings: list[str] = []
+
+    def rewrite_html(
+        self,
+        html_text: str,
+        source_path: Path,
+        iframe_stack: tuple[Path, ...] = (),
+    ) -> str:
+        """Rewrite local presentation resources relative to ``source_path``."""
+        source_path = source_path.resolve()
+        soup = BeautifulSoup(html_text, "html.parser")
+
+        for tag_name, attributes in RESOURCE_ATTRS.items():
+            for tag in soup.find_all(tag_name):
+                for attribute in attributes:
+                    reference = tag.get(attribute)
+                    if not reference:
+                        continue
+                    if attribute == "srcset":
+                        tag[attribute] = self._rewrite_srcset(reference, source_path)
+                    else:
+                        tag[attribute] = self._rewrite_reference(reference, source_path)
+
+        for tag in soup.find_all(style=True):
+            tag["style"] = self.rewrite_css(tag["style"], source_path)
+
+        for style in soup.find_all("style"):
+            css_text = style.get_text()
+            style.clear()
+            style.append(NavigableString(self.rewrite_css(css_text, source_path)))
+
+        self._rewrite_stylesheets(soup, source_path, iframe_stack)
+        self._rewrite_scripts(soup, source_path, iframe_stack)
+        self._rewrite_iframes(soup, source_path, iframe_stack)
+        return str(soup)
+
+    def rewrite_css(self, css_text: str, source_path: Path) -> str:
+        """Embed local CSS ``url(...)`` references relative to ``source_path``."""
+        def replace(match: re.Match[str]) -> str:
+            reference = match.group("reference").strip()
+            rewritten = self._rewrite_reference(reference, source_path)
+            if rewritten == reference:
+                return match.group(0)
+            return f'url("{rewritten}")'
+
+        return _CSS_URL_PATTERN.sub(replace, css_text)
+
+    def to_data_uri(self, path: Path) -> str:
+        """Read a project-local resource and return its typed base64 data URI."""
+        path = path.resolve()
+        self._require_project_local(path, "resource")
+        try:
+            contents = path.read_bytes()
+        except OSError as error:
+            raise PackagingError(f"unable to read resource: {path}") from error
+
+        media_type = _EXPLICIT_MEDIA_TYPES.get(path.suffix.lower())
+        if media_type is None:
+            media_type = mimetypes.guess_type(path.name)[0] or "application/octet-stream"
+        encoded = base64.b64encode(contents).decode("ascii")
+        self.embedded_count += 1
+        return f"data:{media_type};base64,{encoded}"
+
+    def _rewrite_reference(self, reference: str, source_path: Path) -> str:
+        if self._is_preserved_reference(reference):
+            return reference
+        path = self._resolve_resource(reference, source_path)
+        return self.to_data_uri(path)
+
+    def _rewrite_srcset(self, srcset: str, source_path: Path) -> str:
+        if srcset.lstrip().lower().startswith("data:"):
+            return srcset
+
+        candidates = []
+        for candidate in srcset.split(","):
+            parts = candidate.strip().split(maxsplit=1)
+            if not parts:
+                continue
+            rewritten = self._rewrite_reference(parts[0], source_path)
+            candidates.append(" ".join((rewritten, *parts[1:])))
+        return ", ".join(candidates)
+
+    def _rewrite_stylesheets(
+        self, soup: BeautifulSoup, source_path: Path, iframe_stack: tuple[Path, ...]
+    ) -> None:
+        for link in list(soup.find_all("link")):
+            rel = {value.lower() for value in link.get("rel", [])}
+            if "stylesheet" not in rel or not link.get("href"):
+                continue
+            stylesheet_path = self._resolve_resource(link["href"], source_path)
+            if not iframe_stack:
+                continue
+            try:
+                css_text = stylesheet_path.read_text(encoding="utf-8")
+            except OSError as error:
+                raise PackagingError(f"unable to read stylesheet: {stylesheet_path}") from error
+            style = soup.new_tag("style")
+            style.append(NavigableString(self.rewrite_css(css_text, stylesheet_path)))
+            link.replace_with(style)
+
+    def _rewrite_scripts(
+        self, soup: BeautifulSoup, source_path: Path, iframe_stack: tuple[Path, ...]
+    ) -> None:
+        for script in soup.find_all("script"):
+            reference = script.get("src")
+            if not reference:
+                continue
+            script_path = self._resolve_resource(reference, source_path)
+            if not iframe_stack:
+                continue
+            try:
+                script_text = script_path.read_text(encoding="utf-8")
+            except OSError as error:
+                raise PackagingError(f"unable to read script: {script_path}") from error
+            del script["src"]
+            script.clear()
+            script.append(NavigableString(script_text))
+
+    def _rewrite_iframes(
+        self, soup: BeautifulSoup, source_path: Path, iframe_stack: tuple[Path, ...]
+    ) -> None:
+        for iframe in soup.find_all("iframe"):
+            reference = iframe.get("src")
+            if not reference or self._is_preserved_reference(reference):
+                continue
+            iframe_path = self._resolve_resource(reference, source_path)
+            if iframe_path in iframe_stack:
+                cycle = (*iframe_stack, iframe_path)
+                chain = " -> ".join(str(path) for path in cycle)
+                raise PackagingError(f"iframe cycle detected: {chain}")
+            try:
+                iframe_html = iframe_path.read_text(encoding="utf-8")
+            except OSError as error:
+                raise PackagingError(f"unable to read iframe: {iframe_path}") from error
+            rewritten = self.rewrite_html(iframe_html, iframe_path, (*iframe_stack, iframe_path))
+            encoded = base64.b64encode(rewritten.encode("utf-8")).decode("ascii")
+            iframe["src"] = f"data:text/html;base64,{encoded}"
+            self.embedded_count += 1
+
+    def _resolve_resource(self, reference: str, source_path: Path) -> Path:
+        parsed = urlsplit(reference)
+        if parsed.scheme.lower() in REMOTE_SCHEMES or parsed.netloc:
+            raise PackagingError(f"remote runtime resources are not supported: {reference}")
+        if parsed.scheme:
+            raise PackagingError(f"unsupported runtime resource URL: {reference}")
+        if not parsed.path:
+            raise PackagingError(f"resource URL must include a path: {reference}")
+        path = (source_path.parent / unquote(parsed.path)).resolve()
+        self._require_project_local(path, "resource")
+        return path
+
+    def _require_project_local(self, path: Path, field: str) -> None:
+        try:
+            path.relative_to(self.project_root)
+        except ValueError as error:
+            raise PackagingError(f"{field} must stay inside the project: {path}") from error
+
+    @staticmethod
+    def _is_preserved_reference(reference: str) -> bool:
+        normalized = reference.strip().lower()
+        return normalized.startswith("data:") or normalized.startswith("#")
 
 
 def _require_mapping(value: object, field: str) -> dict[str, object]:

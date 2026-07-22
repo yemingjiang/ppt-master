@@ -6,14 +6,22 @@ import json
 import sys
 import tempfile
 import unittest
+from base64 import b64decode, b64encode
 from pathlib import Path
+
+from bs4 import BeautifulSoup
 
 
 SCRIPT_DIR = Path(__file__).parent
 if str(SCRIPT_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPT_DIR))
 
-from build_single_html import PackagingError, load_manifest, validate_slide_fragment
+from build_single_html import (
+    OfflineResourcePackager,
+    PackagingError,
+    load_manifest,
+    validate_slide_fragment,
+)
 
 
 MANIFEST = {
@@ -157,6 +165,111 @@ class ValidateSlideFragmentTests(unittest.TestCase):
                 '<section class="pm-slide" data-slide-id="01"><script>bad()</script></section>',
                 "01",
                 Path("x"),
+            )
+
+
+class OfflineResourcePackagerTests(ProjectFixture):
+    def setUp(self) -> None:
+        super().setUp()
+        self.images = self.project / "images"
+        self.images.mkdir()
+        self.chart = b"\x89PNG\r\n\x1a\nchart"
+        self.poster = b"\x89PNG\r\n\x1a\nposter"
+        self.video = b"mp4-demo"
+        self.audio = b"mp3-demo"
+        self.font = b"woff2-demo"
+        (self.images / "chart.png").write_bytes(self.chart)
+        (self.images / "poster.png").write_bytes(self.poster)
+        (self.images / "demo.mp4").write_bytes(self.video)
+        (self.images / "narration.mp3").write_bytes(self.audio)
+        (self.images / "demo.woff2").write_bytes(self.font)
+        self.slide_path = self.project / "html_output" / "slides" / "01_cover.html"
+
+    def data_uri(self, media_type: str, contents: bytes) -> str:
+        return f"data:{media_type};base64,{b64encode(contents).decode('ascii')}"
+
+    def test_embeds_media_sources_and_css_resources(self) -> None:
+        packager = OfflineResourcePackager(self.project)
+        html = """
+        <img src="../../images/chart.png">
+        <video src="../../images/demo.mp4" poster="../../images/poster.png"></video>
+        <audio src="../../images/narration.mp3"></audio>
+        <source src="../../images/demo.mp4" type="video/mp4">
+        <div style="background-image: url('../../images/chart.png')"></div>
+        <style>@font-face { font-family: Demo; src: url("../../images/demo.woff2") format("woff2"); }
+        .hero { background-image: url("../../images/chart.png"); }</style>
+        """
+
+        rewritten = packager.rewrite_html(html, self.slide_path)
+
+        self.assertIn(self.data_uri("image/png", self.chart), rewritten)
+        self.assertIn(self.data_uri("video/mp4", self.video), rewritten)
+        self.assertIn(self.data_uri("image/png", self.poster), rewritten)
+        self.assertIn(self.data_uri("audio/mpeg", self.audio), rewritten)
+        self.assertIn(self.data_uri("font/woff2", self.font), rewritten)
+        self.assertNotIn("../../images/", rewritten)
+        self.assertEqual(packager.embedded_count, 8)
+
+    def test_preserves_data_uris_and_fragment_urls(self) -> None:
+        existing = "data:image/png;base64,already-embedded"
+        packager = OfflineResourcePackager(self.project)
+        html = (
+            f'<img src="{existing}"><div style="filter: url(#gradient)"></div>'
+            "<style>.mask { filter: url(#gradient); }</style>"
+        )
+
+        rewritten = packager.rewrite_html(html, self.slide_path)
+
+        self.assertIn(existing, rewritten)
+        self.assertIn("url(#gradient)", rewritten)
+        self.assertEqual(packager.embedded_count, 0)
+
+    def test_inlines_nested_iframe_documents_and_dependencies(self) -> None:
+        interactive = self.project / "interactive"
+        interactive.mkdir()
+        (interactive / "root.css").write_text(
+            '.root { background-image: url("../images/chart.png"); }', encoding="utf-8"
+        )
+        (interactive / "root.js").write_text("window.interactiveReady = true;", encoding="utf-8")
+        (interactive / "child.html").write_text(
+            '<html><body><img src="../images/chart.png"></body></html>', encoding="utf-8"
+        )
+        (interactive / "root.html").write_text(
+            "<html><head><link rel=\"stylesheet\" href=\"root.css\"></head><body>"
+            "<script src=\"root.js\"></script><iframe src=\"child.html\"></iframe>"
+            "</body></html>",
+            encoding="utf-8",
+        )
+        packager = OfflineResourcePackager(self.project)
+
+        rewritten = packager.rewrite_html(
+            '<iframe src="../../interactive/root.html"></iframe>', self.slide_path
+        )
+
+        outer = BeautifulSoup(rewritten, "html.parser").iframe
+        root_html = b64decode(outer["src"].split(",", 1)[1]).decode("utf-8")
+        self.assertNotIn("root.css", root_html)
+        self.assertNotIn("root.js", root_html)
+        self.assertNotIn("child.html", root_html)
+        self.assertNotIn("../images/", root_html)
+        self.assertIn("window.interactiveReady = true;", root_html)
+        self.assertIn(self.data_uri("image/png", self.chart), root_html)
+
+        nested = BeautifulSoup(root_html, "html.parser").iframe
+        child_html = b64decode(nested["src"].split(",", 1)[1]).decode("utf-8")
+        self.assertIn(self.data_uri("image/png", self.chart), child_html)
+        self.assertNotIn("../images/", child_html)
+
+    def test_rejects_nested_iframe_cycles_with_ordered_paths(self) -> None:
+        interactive = self.project / "interactive"
+        interactive.mkdir()
+        (interactive / "a.html").write_text('<iframe src="b.html"></iframe>', encoding="utf-8")
+        (interactive / "b.html").write_text('<iframe src="a.html"></iframe>', encoding="utf-8")
+        packager = OfflineResourcePackager(self.project)
+
+        with self.assertRaisesRegex(PackagingError, r"a\.html.*b\.html.*a\.html"):
+            packager.rewrite_html(
+                '<iframe src="../../interactive/a.html"></iframe>', self.slide_path
             )
 
 
