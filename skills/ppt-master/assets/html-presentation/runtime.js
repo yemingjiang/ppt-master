@@ -108,7 +108,15 @@
     const open = notesPanel.hidden;
     notesPanel.hidden = !open;
     notesPanel.setAttribute("aria-hidden", String(!open));
-    if (open) notesPanel.querySelector("button").focus();
+    if (open) {
+      notesPanel.querySelector("button").focus();
+      return;
+    }
+    const focused = document.activeElement;
+    if (focused && focused.closest && focused.closest("#pmNotesPanel")) {
+      const notesTrigger = controls.querySelector('[data-pm-action="notes"]');
+      if (notesTrigger) notesTrigger.focus();
+    }
   }
 
   function revealControls() {

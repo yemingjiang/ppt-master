@@ -256,23 +256,29 @@ function node(name, extra = {}) {
     classList: classList(), dataset: {}, style: {}, textContent: "", hidden: false,
     addEventListener(type, handler) { register(name, type, handler); },
     querySelectorAll() { return []; }, querySelector() { return controlButton; },
-    setAttribute() {}, closest() { return null; }, focus() {},
+    setAttribute() {}, closest() { return null; }, focus() { activeElement = this; },
   }, extra);
 }
 const controlButton = node("controlButton");
 const app = node("app");
 const stage = node("stage");
-const deck = node("deck");
-const controls = node("controls");
+const slideOne = node("slideOne", { dataset: { slideId: "01" } });
+const deck = node("deck", { querySelectorAll() { return [slideOne]; } });
+const notesCloseButton = node("notesCloseButton", { dataset: { pmAction: "notes" } });
+const controls = node("controls", { querySelector() { return controlButton; } });
 const pageCount = node("pageCount");
 const progress = node("progress");
-const notesPanel = node("notesPanel");
+const notesPanel = node("notesPanel", { hidden: true, querySelector() { return notesCloseButton; } });
 const notesContent = node("notesContent");
 const notesData = node("notesData", { textContent: "{}" });
-controlButton.closest = (selector) => selector.includes("pmControls") ? controls : null;
+let activeElement = null;
+controlButton.dataset.pmAction = "notes";
+controlButton.closest = (selector) => selector.includes("[data-pm-action]") ? controlButton : (selector.includes("pmControls") ? controls : null);
+notesCloseButton.closest = (selector) => selector.includes("[data-pm-action]") ? notesCloseButton : (selector.includes("pmNotesPanel") ? notesPanel : null);
 const elements = { pmApp: app, pmStage: stage, pmDeck: deck, pmControls: controls, pmPageCount: pageCount, pmProgress: progress, pmNotesPanel: notesPanel, pmNotesContent: notesContent, pmNotesData: notesData };
 const document = {
-  fullscreenElement: null, activeElement: null,
+  fullscreenElement: null,
+  get activeElement() { return activeElement; }, set activeElement(value) { activeElement = value; },
   getElementById(id) { return elements[id]; },
   addEventListener(type, handler) { register("document", type, handler); },
 };
@@ -282,8 +288,8 @@ const window = {
   setTimeout(handler) { const id = nextTimer++; timerCallbacks.set(id, handler); return id; },
   clearTimeout(id) { timerCallbacks.delete(id); },
 };
-const history = { replaceState() {} };
-const context = { document, window, history, app, stage, controls, controlButton, listeners, timerCallbacks };
+const history = { replaceState(_state, _title, hash) { window.location.hash = hash; } };
+const context = { document, window, history, app, stage, controls, controlButton, notesCloseButton, notesPanel, slideOne, listeners, timerCallbacks };
 vm.createContext(context);
 new vm.Script(process.argv[1]).runInContext(context);
 if (process.argv[3]) new vm.Script(process.argv[3]).runInContext(context);
@@ -296,7 +302,22 @@ if (process.argv[3]) new vm.Script(process.argv[3]).runInContext(context);
         )
 
     def test_malformed_hash_does_not_crash_runtime_startup(self) -> None:
-        result = self.run_runtime_probe("#%")
+        result = self.run_runtime_probe(
+            "#%",
+            "if (!slideOne.classList.contains('pm-active')) throw new Error('slide one was not activated');"
+            "if (window.location.hash !== '#01') throw new Error('malformed hash was not normalized');",
+        )
+
+        self.assertEqual(result.returncode, 0, result.stderr)
+
+    def test_closing_notes_returns_focus_to_notes_trigger(self) -> None:
+        result = self.run_runtime_probe(
+            "",
+            "listeners.document.click({ target: controlButton, preventDefault() {} });"
+            "if (document.activeElement !== notesCloseButton) throw new Error('notes close control was not focused');"
+            "listeners.document.click({ target: notesCloseButton, preventDefault() {} });"
+            "if (document.activeElement !== controlButton) throw new Error('notes trigger did not regain focus');",
+        )
 
         self.assertEqual(result.returncode, 0, result.stderr)
 
