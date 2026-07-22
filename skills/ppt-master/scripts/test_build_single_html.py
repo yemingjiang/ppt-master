@@ -134,6 +134,23 @@ class ValidateSlideFragmentTests(unittest.TestCase):
                 Path("x"),
             )
 
+    def test_rejects_stray_top_level_text(self) -> None:
+        with self.assertRaisesRegex(PackagingError, "slide root"):
+            validate_slide_fragment(
+                'stray text<section class="pm-slide" data-slide-id="01"></section>',
+                "01",
+                Path("x"),
+            )
+
+    def test_allows_top_level_whitespace_and_comments(self) -> None:
+        fragment = validate_slide_fragment(
+            ' \n<!-- source marker -->\n<section class="pm-slide" data-slide-id="01"></section>\n',
+            "01",
+            Path("x"),
+        )
+
+        self.assertEqual(fragment, '<section class="pm-slide" data-slide-id="01"></section>')
+
     def test_rejects_scripts(self) -> None:
         with self.assertRaisesRegex(PackagingError, "script"):
             validate_slide_fragment(

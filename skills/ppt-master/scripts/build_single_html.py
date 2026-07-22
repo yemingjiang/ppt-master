@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from bs4 import BeautifulSoup
+from bs4 import BeautifulSoup, Comment, NavigableString
 
 
 class PackagingError(ValueError):
@@ -77,6 +77,12 @@ def validate_slide_fragment(html_text: str, slide_id: str, source_path: Path) ->
     soup = BeautifulSoup(html_text, "html.parser")
     if soup.find("script") is not None:
         raise PackagingError(f"{source_path}: slide fragments must not contain script elements")
+
+    if any(
+        isinstance(node, NavigableString) and not isinstance(node, Comment) and node.strip()
+        for node in soup.contents
+    ):
+        raise PackagingError(f"{source_path}: expected exactly one slide root section")
 
     roots = [element for element in soup.contents if getattr(element, "name", None)]
     if len(roots) != 1 or roots[0].name != "section" or "pm-slide" not in roots[0].get("class", []):
