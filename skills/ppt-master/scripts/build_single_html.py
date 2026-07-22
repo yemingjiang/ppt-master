@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import base64
+import html
 import json
 import mimetypes
 import re
@@ -10,6 +11,12 @@ from pathlib import Path
 from urllib.parse import unquote, urlsplit
 
 from bs4 import BeautifulSoup, Comment, NavigableString
+
+
+SKILL_DIR = Path(__file__).resolve().parent.parent
+HTML_PRESENTATION_ASSET_DIR = SKILL_DIR / "assets" / "html-presentation"
+_ASPECT_RATIO_PATTERN = re.compile(r"^\s*(\d+(?:\.\d+)?)\s*/\s*(\d+(?:\.\d+)?)\s*$")
+_TOKEN_NAME_PATTERN = re.compile(r"^[a-z][a-z0-9_-]*$")
 
 
 class PackagingError(ValueError):
@@ -357,3 +364,62 @@ def validate_slide_fragment(html_text: str, slide_id: str, source_path: Path) ->
     if root.get("data-slide-id") != slide_id:
         raise PackagingError(f"{source_path}: data-slide-id must match {slide_id!r}")
     return str(root)
+
+
+def _read_presentation_asset(name: str) -> str:
+    """Read a bundled runtime asset relative to the ppt-master skill directory."""
+    path = HTML_PRESENTATION_ASSET_DIR / name
+    try:
+        return path.read_text(encoding="utf-8")
+    except OSError as error:
+        raise PackagingError(f"bundled HTML presentation asset not found: {path}") from error
+
+
+def _theme_tokens_css(manifest: dict[str, object]) -> str:
+    theme = _require_mapping(manifest.get("theme"), "theme")
+    tokens = _require_mapping(theme.get("tokens"), "theme.tokens")
+    aspect_ratio = _require_string(manifest, "aspect_ratio")
+    aspect_match = _ASPECT_RATIO_PATTERN.fullmatch(aspect_ratio)
+    if aspect_match is None or float(aspect_match.group(1)) <= 0 or float(aspect_match.group(2)) <= 0:
+        raise PackagingError("aspect_ratio must be a positive width / height pair")
+
+    variables = [
+        f"  --pm-aspect-ratio: {aspect_match.group(1)} / {aspect_match.group(2)};",
+        f"  --pm-aspect-width: {aspect_match.group(1)};",
+        f"  --pm-aspect-height: {aspect_match.group(2)};",
+    ]
+    for name, value in tokens.items():
+        if not isinstance(name, str) or not _TOKEN_NAME_PATTERN.fullmatch(name):
+            raise PackagingError("theme token names must be lowercase CSS-safe identifiers")
+        if not isinstance(value, str) or not value or "{" in value or "}" in value:
+            raise PackagingError(f"theme.tokens.{name} must be a safe non-empty string")
+        variables.append(f"  --pm-{name.replace('_', '-')}: {value};")
+    return ":root {\n" + "\n".join(variables) + "\n}"
+
+
+def _safe_json(data: object) -> str:
+    return json.dumps(data, ensure_ascii=False, separators=(",", ":")).replace("</", "<\\/")
+
+
+def render_document(
+    manifest: dict[str, object],
+    slides: list[str],
+    project_css: str,
+    notes: dict[str, dict],
+) -> str:
+    """Render validated presentation sources into the portable presentation shell."""
+    title = _require_string(manifest, "title")
+    language = _require_string(manifest, "lang")
+    replacements = {
+        "LANG": html.escape(language, quote=True),
+        "TITLE": html.escape(title, quote=True),
+        "THEME_TOKENS": _theme_tokens_css(manifest),
+        "RUNTIME_CSS": _read_presentation_asset("runtime.css"),
+        "THEME_CSS": _read_presentation_asset("executive-red.css"),
+        "PROJECT_CSS": project_css,
+        "SLIDES": "\n".join(slides),
+        "NOTES_JSON": _safe_json(notes),
+        "RUNTIME_JS": _read_presentation_asset("runtime.js"),
+    }
+    shell = _read_presentation_asset("shell.html")
+    return re.sub(r"\{\{([A-Z_]+)\}\}", lambda match: replacements[match.group(1)], shell)

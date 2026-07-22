@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -20,6 +21,7 @@ from build_single_html import (
     OfflineResourcePackager,
     PackagingError,
     load_manifest,
+    render_document,
     validate_slide_fragment,
 )
 
@@ -166,6 +168,74 @@ class ValidateSlideFragmentTests(unittest.TestCase):
                 "01",
                 Path("x"),
             )
+
+
+class RenderDocumentRuntimeContractTests(unittest.TestCase):
+    def render(self) -> str:
+        slides = [
+            '<section class="pm-slide" data-slide-id="01">Cover</section>',
+            '<section class="pm-slide" data-slide-id="02">Overview</section>',
+        ]
+        notes = {"01": {"script": "Opening notes"}, "02": {"script": "Closing notes"}}
+        return render_document(MANIFEST, slides, ".slide-01 { color: red; }", notes)
+
+    def test_renders_stable_presentation_shell_hooks(self) -> None:
+        document = self.render()
+
+        for hook in (
+            'data-pm-action="previous"',
+            'data-pm-action="next"',
+            'data-pm-action="fullscreen"',
+            'data-pm-action="notes"',
+            'id="pmNotesPanel"',
+            'id="pmProgress"',
+            "prefers-reduced-motion",
+        ):
+            self.assertIn(hook, document)
+
+    def test_runtime_script_parses_in_node_and_has_navigation_contract(self) -> None:
+        document = self.render()
+        runtime = BeautifulSoup(document, "html.parser").find_all("script")[-1].get_text()
+
+        result = subprocess.run(
+            ["node", "-e", "const vm = require('vm'); new vm.Script(process.argv[1]);", runtime],
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+
+        self.assertEqual(result.returncode, 0, result.stderr)
+        for behavior in (
+            "ArrowLeft",
+            "ArrowRight",
+            "PageUp",
+            "PageDown",
+            "Space",
+            "Home",
+            "End",
+            "case \"f\"",
+            "case \"n\"",
+            "pointerdown",
+            "pointerup",
+            "touchstart",
+            "touchend",
+            "isInteractiveTarget",
+            "location.hash",
+            "pauseInactiveMedia",
+            "controls",
+        ):
+            self.assertIn(behavior, runtime)
+
+    def test_embeds_notes_without_allowing_script_termination(self) -> None:
+        document = render_document(
+            MANIFEST,
+            ['<section class="pm-slide" data-slide-id="01">Cover</section>'],
+            "",
+            {"01": {"script": "</script><script>unsafe()</script>"}},
+        )
+
+        self.assertIn('<\\/script>', document)
+        self.assertNotIn('</script><script>unsafe()', document)
 
 
 class OfflineResourcePackagerTests(ProjectFixture):

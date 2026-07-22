@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="{{LANG}}">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>{{TITLE}}</title>
+  <style>
+{{THEME_TOKENS}}
+{{RUNTIME_CSS}}
+{{THEME_CSS}}
+{{PROJECT_CSS}}
+  </style>
+</head>
+<body>
+  <main class="pm-app" id="pmApp">
+    <div class="pm-stage" id="pmStage" aria-label="Presentation">
+      <div class="pm-deck" id="pmDeck">
+{{SLIDES}}
+      </div>
+    </div>
+
+    <div class="pm-controls" id="pmControls" aria-label="Presentation controls">
+      <button type="button" data-pm-action="previous" aria-label="Previous slide">←</button>
+      <span class="pm-page-count" id="pmPageCount" aria-live="polite"></span>
+      <button type="button" data-pm-action="next" aria-label="Next slide">→</button>
+      <button type="button" data-pm-action="fullscreen" aria-label="Toggle fullscreen">⛶</button>
+      <button type="button" data-pm-action="notes" aria-label="Toggle speaker notes">Notes</button>
+    </div>
+    <div class="pm-progress-track" aria-hidden="true"><div id="pmProgress"></div></div>
+
+    <aside class="pm-notes-panel" id="pmNotesPanel" aria-labelledby="pmNotesTitle" aria-hidden="true" hidden>
+      <div class="pm-notes-header">
+        <h2 id="pmNotesTitle">Speaker notes</h2>
+        <button type="button" data-pm-action="notes" aria-label="Close speaker notes">×</button>
+      </div>
+      <div id="pmNotesContent"></div>
+    </aside>
+  </main>
+  <script id="pmNotesData" type="application/json">{{NOTES_JSON}}</script>
+  <script>
+{{RUNTIME_JS}}
+  </script>
+</body>
+</html>
