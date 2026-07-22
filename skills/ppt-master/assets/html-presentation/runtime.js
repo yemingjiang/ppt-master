@@ -53,6 +53,15 @@
     }
   }
 
+  function hashSlideId() {
+    const value = window.location.hash.slice(1);
+    try {
+      return decodeURIComponent(value);
+    } catch (_error) {
+      return value;
+    }
+  }
+
   function renderNotes() {
     const active = slides[currentIndex];
     const entry = active ? notes[active.dataset.slideId] : null;
@@ -105,11 +114,18 @@
   function revealControls() {
     app.classList.remove("pm-controls-hidden");
     window.clearTimeout(controlsTimer);
-    controlsTimer = window.setTimeout(() => app.classList.add("pm-controls-hidden"), 2400);
+    controlsTimer = window.setTimeout(() => {
+      const focused = document.activeElement;
+      if (focused && focused.closest && focused.closest("#pmControls, #pmNotesPanel")) {
+        revealControls();
+        return;
+      }
+      app.classList.add("pm-controls-hidden");
+    }, 2400);
   }
 
   function restoreHash() {
-    const requested = decodeURIComponent(window.location.hash.slice(1));
+    const requested = hashSlideId();
     const found = slides.findIndex((slide) => slide.dataset.slideId === requested);
     show(found >= 0 ? found : 0, found < 0);
   }
@@ -179,6 +195,7 @@
   });
 
   stage.addEventListener("pointerdown", (event) => {
+    revealControls();
     if (event.pointerType !== "touch" && !isInteractiveTarget(event.target)) pointerStart = event.clientX;
   });
   stage.addEventListener("pointerup", (event) => {
@@ -188,6 +205,7 @@
     if (Math.abs(delta) > 48) go(delta < 0 ? 1 : -1);
   });
   stage.addEventListener("touchstart", (event) => {
+    revealControls();
     if (!isInteractiveTarget(event.target)) touchStart = event.changedTouches[0].clientX;
   }, { passive: true });
   stage.addEventListener("touchend", (event) => {
@@ -199,6 +217,8 @@
 
   window.addEventListener("hashchange", restoreHash);
   window.addEventListener("pointermove", revealControls, { passive: true });
+  document.addEventListener("keydown", revealControls);
+  document.addEventListener("pointerdown", revealControls, { passive: true });
   document.addEventListener("focusin", revealControls);
   controls.addEventListener("pointermove", revealControls, { passive: true });
   restoreHash();

@@ -17,6 +17,7 @@ SKILL_DIR = Path(__file__).resolve().parent.parent
 HTML_PRESENTATION_ASSET_DIR = SKILL_DIR / "assets" / "html-presentation"
 _ASPECT_RATIO_PATTERN = re.compile(r"^\s*(\d+(?:\.\d+)?)\s*/\s*(\d+(?:\.\d+)?)\s*$")
 _TOKEN_NAME_PATTERN = re.compile(r"^[a-z][a-z0-9_-]*$")
+_CSS_HEX_COLOR_PATTERN = re.compile(r"^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$")
 
 
 class PackagingError(ValueError):
@@ -391,8 +392,8 @@ def _theme_tokens_css(manifest: dict[str, object]) -> str:
     for name, value in tokens.items():
         if not isinstance(name, str) or not _TOKEN_NAME_PATTERN.fullmatch(name):
             raise PackagingError("theme token names must be lowercase CSS-safe identifiers")
-        if not isinstance(value, str) or not value or "{" in value or "}" in value:
-            raise PackagingError(f"theme.tokens.{name} must be a safe non-empty string")
+        if not isinstance(value, str) or not _CSS_HEX_COLOR_PATTERN.fullmatch(value):
+            raise PackagingError(f"theme.tokens.{name} must be a CSS hex color")
         variables.append(f"  --pm-{name.replace('_', '-')}: {value};")
     return ":root {\n" + "\n".join(variables) + "\n}"
 

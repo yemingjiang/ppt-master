@@ -237,6 +237,95 @@ class RenderDocumentRuntimeContractTests(unittest.TestCase):
         self.assertIn('<\\/script>', document)
         self.assertNotIn('</script><script>unsafe()', document)
 
+    def run_runtime_probe(self, hash_value: str, probe: str = "") -> subprocess.CompletedProcess[str]:
+        runtime = BeautifulSoup(self.render(), "html.parser").find_all("script")[-1].get_text()
+        runner = r'''
+const vm = require("vm");
+const listeners = {};
+const timerCallbacks = new Map();
+let nextTimer = 1;
+function register(name, type, handler) {
+  (listeners[name] ||= {})[type] = handler;
+}
+function classList() {
+  const values = new Set();
+  return { add: (value) => values.add(value), remove: (value) => values.delete(value), contains: (value) => values.has(value), toggle: (value, force) => force ? values.add(value) : values.delete(value) };
+}
+function node(name, extra = {}) {
+  return Object.assign({
+    classList: classList(), dataset: {}, style: {}, textContent: "", hidden: false,
+    addEventListener(type, handler) { register(name, type, handler); },
+    querySelectorAll() { return []; }, querySelector() { return controlButton; },
+    setAttribute() {}, closest() { return null; }, focus() {},
+  }, extra);
+}
+const controlButton = node("controlButton");
+const app = node("app");
+const stage = node("stage");
+const deck = node("deck");
+const controls = node("controls");
+const pageCount = node("pageCount");
+const progress = node("progress");
+const notesPanel = node("notesPanel");
+const notesContent = node("notesContent");
+const notesData = node("notesData", { textContent: "{}" });
+controlButton.closest = (selector) => selector.includes("pmControls") ? controls : null;
+const elements = { pmApp: app, pmStage: stage, pmDeck: deck, pmControls: controls, pmPageCount: pageCount, pmProgress: progress, pmNotesPanel: notesPanel, pmNotesContent: notesContent, pmNotesData: notesData };
+const document = {
+  fullscreenElement: null, activeElement: null,
+  getElementById(id) { return elements[id]; },
+  addEventListener(type, handler) { register("document", type, handler); },
+};
+const window = {
+  location: { hash: process.argv[2] },
+  addEventListener(type, handler) { register("window", type, handler); },
+  setTimeout(handler) { const id = nextTimer++; timerCallbacks.set(id, handler); return id; },
+  clearTimeout(id) { timerCallbacks.delete(id); },
+};
+const history = { replaceState() {} };
+const context = { document, window, history, app, stage, controls, controlButton, listeners, timerCallbacks };
+vm.createContext(context);
+new vm.Script(process.argv[1]).runInContext(context);
+if (process.argv[3]) new vm.Script(process.argv[3]).runInContext(context);
+'''
+        return subprocess.run(
+            ["node", "-e", runner, runtime, hash_value, probe],
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+
+    def test_malformed_hash_does_not_crash_runtime_startup(self) -> None:
+        result = self.run_runtime_probe("#%")
+
+        self.assertEqual(result.returncode, 0, result.stderr)
+
+    def test_controls_remain_visible_while_focus_is_inside_controls(self) -> None:
+        result = self.run_runtime_probe(
+            "",
+            "document.activeElement = controlButton; [...timerCallbacks.values()].at(-1)();"
+            "if (app.classList.contains('pm-controls-hidden')) throw new Error('controls hidden with focus');",
+        )
+
+        self.assertEqual(result.returncode, 0, result.stderr)
+
+    def test_stage_pointerdown_reveals_hidden_controls(self) -> None:
+        result = self.run_runtime_probe(
+            "",
+            "app.classList.add('pm-controls-hidden');"
+            "listeners.stage.pointerdown({ pointerType: 'mouse', clientX: 10, target: stage });"
+            "if (app.classList.contains('pm-controls-hidden')) throw new Error('stage pointer did not reveal controls');",
+        )
+
+        self.assertEqual(result.returncode, 0, result.stderr)
+
+    def test_rejects_non_color_theme_token_values(self) -> None:
+        manifest = json.loads(json.dumps(MANIFEST))
+        manifest["theme"]["tokens"]["primary"] = "url(https://example.test/theme.css)"
+
+        with self.assertRaisesRegex(PackagingError, r"theme\.tokens\.primary"):
+            render_document(manifest, [], "", {})
+
 
 class OfflineResourcePackagerTests(ProjectFixture):
     def setUp(self) -> None:
