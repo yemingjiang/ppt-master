@@ -17,6 +17,8 @@ html_output/
 
 Create `html_output/presentation.json` with `schema_version: 1`, `title`, `lang`, `aspect_ratio`, a named `theme` with color `tokens`, and ordered `slides`. Each slide needs unique `id`, audience-facing `title`, project-local `file`, and `notes_key`. Use the default `executive-red` theme unless the confirmed design spec requires another named theme and its complete tokens.
 
+The confirmed theme is fixed at build time. A runtime theme switcher or chooser is forbidden.
+
 Put exactly one top-level slide root in every fragment:
 
 ```html

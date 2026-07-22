@@ -11,6 +11,7 @@
 | **Page Count** | [Filled by Strategist] |
 | **Design Style** | {design_style} |
 | **Deliverable Mode** | [Review Skeleton / Single-file HTML Presentation / Native Editable Handoff / Legacy Direct Export] |
+| **Exactly One Deliverable Mode** | [Select exactly one mode for this run] |
 | **Selected Final Target** | [None for Review Skeleton / `exports/<project_name>.single.html` / native editable `.pptx` / legacy direct-export `.pptx`] |
 | **Target Audience** | [Filled by Strategist] |
 | **Use Case** | [Filled by Strategist] |
@@ -18,7 +19,7 @@
 
 ---
 
-> Record one Selected Final Target before final production. Do not select simultaneous HTML and PPTX final outputs by default. `preview/index.html` remains a review artifact, not a selected final target.
+> Select exactly one Deliverable Mode for the run. **Review Skeleton: no final target** — stop after Step 7. Every final-production mode records exactly one matching final target before Step 8. Never record or produce HTML and PPTX final outputs in the same run. `preview/index.html` remains a review artifact, not a selected final target.
 >
 > When **Deliverable Mode = Native Editable Handoff**, the downstream PowerPoint build should be treated as a separate text-layout engine from the browser SVG review draft. If any headings, metric badges, or dense callouts are especially wrap-sensitive, note that expectation in the relevant sections below.
 
@@ -28,14 +29,14 @@
 | ----- | ----- |
 | **Final Artifact** | `exports/<project_name>.single.html` |
 | **Source Manifest** | `html_output/presentation.json` |
-| **Theme Name and Tokens** | [Confirmed theme name and all required color tokens] |
+| **Confirmed HTML Theme and Tokens** | [Default `executive-red`: `#FFFFFF`, `#F2F2F2`, `#B50F0A`, `#FFFFFF`, `#222222`, `#666666`, `#D7D7D7`; record the user-confirmed override instead when selected before generation] |
 | **Slide Root Contract** | One `<section class="pm-slide" data-slide-id="...">` per manifest slide |
 | **Resource Policy** | [Project-local assets only; package for offline use] |
 | **Iframe Isolation** | [None / list isolated project-local embeds and rationale] |
 | **Runtime Controls** | [Navigation, progress, fullscreen, speaker notes] |
 | **Offline QA Owner** | [Verify final packaged file without a server] |
 
-> Keep visible HTML copy audience-facing. Put presenter narration in `notes/total.md` under the manifest `notes_key`; the final runtime exposes it through speaker notes.
+> Keep visible HTML copy audience-facing. Put presenter narration in `notes/total.md` under the manifest `notes_key`; the final runtime exposes it through speaker notes. The confirmed HTML theme and tokens are fixed at build time.
 
 ## II. Canvas Specification
 

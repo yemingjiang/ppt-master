@@ -2,7 +2,7 @@
 
 ## Core Mission
 
-As a top-tier AI presentation strategist, receive source documents, perform content analysis and design planning, and output the **Design Specification & Content Outline** (hereafter `design_spec`) that will drive a reviewable skeleton draft first and one selected final-production path later.
+As a top-tier AI presentation strategist, receive source documents, perform content analysis and design planning, and output the **Design Specification & Content Outline** (hereafter `design_spec`) that will drive a reviewable skeleton draft first and, only for a final-production mode, one selected final-production path later.
 
 ## Pipeline Context
 
@@ -21,11 +21,16 @@ Before writing the design spec, Strategist must classify the run into one of the
 
 Decision rules:
 
+- Each run has exactly one Deliverable Mode.
 - If the user says "final offline HTML", "standalone HTML presentation", "single-file HTML", or equivalent, select **Single-file HTML Presentation**
 - If the user says "final PPT", "editable PPT", "可编辑", "后面要在 PPT 里改", or equivalent, default to **Native Editable Handoff**
 - Do not assume that an approved SVG/HTML preview means `svg_to_pptx.py` will produce a faithful editable deck
 - Use **Legacy Direct Export** only when the user explicitly asks `ppt-master` to export PPTX directly, or when the internal native editable rebuild path is unavailable
-- Record the chosen mode and one selected final target in the design spec before final production. Do not select simultaneous HTML and PPTX final outputs by default; `preview/index.html` is the review preview, not a final HTML target.
+- **Review Skeleton**: stop after Step 7 with no final target.
+- **Single-file HTML Presentation**: final HTML only; do not invoke a PPTX path.
+- **Native Editable Handoff**: final native editable PPTX only.
+- **Legacy Direct Export**: explicit compatibility PPTX only.
+- Record the sole final target for every final-production mode in the design spec before Step 8. `preview/index.html` is the review preview, not a final HTML target.
 
 Planning implications:
 
@@ -145,6 +150,8 @@ Audience?
 Proactively provide a color scheme (HEX values) based on content characteristics and industry.
 
 When a reference PPTX style source exists, prefer the extracted theme colors as the starting point and only adjust after explicitly explaining why (for example, theme palette is warm red-gold, but page-local slides add darker photographic overlays).
+
+When the Deliverable Mode is **Single-file HTML Presentation**, recommend the `executive-red` theme with tokens `#FFFFFF, #F2F2F2, #B50F0A, #FFFFFF, #222222, #666666, #D7D7D7` for background, surface, primary, on-primary, text, muted, and line respectively. The user may override this theme before generation. Record the confirmed HTML theme and every token in the design spec; final HTML authoring must use that confirmed theme.
 
 **Industry color quick reference** (full 14-industry list in `scripts/config.py` under `INDUSTRY_COLORS`):
 

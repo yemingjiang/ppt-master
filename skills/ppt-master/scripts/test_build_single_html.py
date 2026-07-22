@@ -104,14 +104,14 @@ class HtmlPresentationDocumentationContractTests(unittest.TestCase):
             )
 
     def test_skill_routes_final_html_to_its_dedicated_reference(self) -> None:
-        skill = (SKILL_DIR / "SKILL.md").read_text(encoding="utf-8")
+        skill = (SKILL_DIR / "SKILL.md").read_text(encoding="utf-8").replace("**", "")
 
         self.assertIn("Single-file HTML Presentation", skill)
         self.assertIn("references/html-presentation.md", skill)
         self.assertIn("scripts/build_single_html.py", skill)
         self.assertIn("preview/index.html", skill)
         self.assertIn("is not the final HTML", skill)
-        self.assertIn("only one final target is selected", skill)
+        self.assertIn("Each run has exactly one Deliverable Mode.", skill)
 
     def test_html_reference_documents_source_and_delivery_contract(self) -> None:
         reference = (SKILL_DIR / "references" / "html-presentation.md").read_text(
@@ -138,6 +138,93 @@ class HtmlPresentationDocumentationContractTests(unittest.TestCase):
         self.assertIn("Single-file HTML Presentation", template)
         self.assertIn("HTML Presentation", template)
         self.assertIn("html_output/presentation.json", template)
+
+    def test_skill_locks_review_gate_and_exclusive_final_routes(self) -> None:
+        skill = (SKILL_DIR / "SKILL.md").read_text(encoding="utf-8").replace("**", "")
+
+        for required_text in (
+            "Each run has exactly one Deliverable Mode.",
+            "Review Skeleton: stop after Step 7; do not select or produce a final target.",
+            "Single-file HTML Presentation: run only the HTML branch.",
+            "NEVER invoke Native Editable Handoff or Legacy Direct Export in that run.",
+            "Native Editable Handoff: produce only the native editable PPTX.",
+            "Legacy Direct Export: produce only the explicitly requested compatibility PPTX.",
+            "Do not begin any final production before Step 7",
+        ):
+            self.assertIn(required_text, skill)
+
+    def test_strategist_locks_mode_and_confirms_html_theme(self) -> None:
+        strategist = (
+            (SKILL_DIR / "references" / "strategist.md")
+            .read_text(encoding="utf-8")
+            .replace("**", "")
+        )
+
+        for required_text in (
+            "Each run has exactly one Deliverable Mode.",
+            "Review Skeleton: stop after Step 7 with no final target.",
+            "Single-file HTML Presentation: final HTML only; do not invoke a PPTX path.",
+            "Native Editable Handoff: final native editable PPTX only.",
+            "Legacy Direct Export: explicit compatibility PPTX only.",
+            "executive-red",
+            "#FFFFFF, #F2F2F2, #B50F0A, #FFFFFF, #222222, #666666, #D7D7D7",
+            "The user may override this theme before generation.",
+        ):
+            self.assertIn(required_text, strategist)
+
+    def test_executor_locks_mode_specific_completion(self) -> None:
+        executor = (
+            (SKILL_DIR / "references" / "executor-base.md")
+            .read_text(encoding="utf-8")
+            .replace("**", "")
+        )
+
+        for required_text in (
+            "Each run has exactly one Deliverable Mode.",
+            "Review Skeleton: stop after Step 7 with no final target.",
+            "Single-file HTML Presentation: package only the final offline HTML.",
+            "Native Editable Handoff: package only the final native editable PPTX.",
+            "Legacy Direct Export: package only the explicitly requested compatibility PPTX.",
+        ):
+            self.assertIn(required_text, executor)
+
+    def test_html_reference_locks_theme_at_build_time(self) -> None:
+        reference = (SKILL_DIR / "references" / "html-presentation.md").read_text(
+            encoding="utf-8"
+        )
+
+        self.assertIn("The confirmed theme is fixed at build time.", reference)
+        self.assertIn("A runtime theme switcher or chooser is forbidden.", reference)
+
+    def test_design_template_records_confirmed_html_theme_and_exclusive_mode(self) -> None:
+        template = (SKILL_DIR / "templates" / "design_spec_reference.md").read_text(
+            encoding="utf-8"
+        )
+
+        for required_text in (
+            "Exactly One Deliverable Mode",
+            "Review Skeleton: no final target",
+            "Confirmed HTML Theme and Tokens",
+            "executive-red",
+            "#FFFFFF",
+            "#F2F2F2",
+            "#B50F0A",
+            "#222222",
+            "#666666",
+            "#D7D7D7",
+        ):
+            self.assertIn(required_text, template)
+
+    def test_entry_points_condition_native_rebuild_on_its_selected_mode(self) -> None:
+        agents = (SKILL_DIR.parent.parent / "AGENTS.md").read_text(encoding="utf-8")
+        readme = (SKILL_DIR.parent.parent / "README.md").read_text(encoding="utf-8")
+        scripts_readme = (SCRIPT_DIR / "README.md").read_text(encoding="utf-8")
+
+        for document in (agents, readme, scripts_readme):
+            self.assertIn("Each run has exactly one Deliverable Mode.", document)
+            self.assertIn("Review Skeleton: stop after Step 7 with no final target.", document)
+        self.assertIn("Native Editable Handoff is selected", readme)
+        self.assertIn("Native Editable Handoff is selected", scripts_readme)
 
 
 class LoadManifestTests(ProjectFixture):

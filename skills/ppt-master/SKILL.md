@@ -82,9 +82,14 @@ description: Use when asked to create a presentation outline, review draft, fina
 >
 > Rules:
 >
+> - Each run has exactly one Deliverable Mode.
 > - If the user asks for a **final offline HTML**, **standalone HTML presentation**, **single-file HTML**, or equivalent, select **Single-file HTML Presentation**.
 > - If the user asks for a **final PPT**, **editable PPT**, **可编辑**, **老板后续要改**, or equivalent, default to **Native Editable Handoff**.
-> - Record the selected final target in `design_spec.md` before final production: only one final target is selected. Do not produce HTML and PPTX simultaneously by default.
+> - **Review Skeleton**: stop after Step 7; do not select or produce a final target.
+> - **Single-file HTML Presentation**: run only the HTML branch. NEVER invoke Native Editable Handoff or Legacy Direct Export in that run.
+> - **Native Editable Handoff**: produce only the native editable PPTX.
+> - **Legacy Direct Export**: produce only the explicitly requested compatibility PPTX.
+> - For every final-production mode, record its sole selected final target in `design_spec.md` before Step 8. Never produce more than one final format in a run.
 > - `preview/index.html` is not the final HTML. It is the review-only skeleton preview.
 > - For **Single-file HTML Presentation**, read `references/html-presentation.md` before authoring `html_output/` and package only with `scripts/build_single_html.py`.
 > - In **Native Editable Handoff**, `ppt-master` owns structure, content outline, style direction, review loop, handoff files, and the final native rebuild. The final native `.pptx` MUST follow `${SKILL_DIR}/references/native-editable.md` and use native PowerPoint text boxes, shapes, tables, and media placement.
@@ -382,7 +387,7 @@ During this loop:
 
 - Prefer reviewing `preview/index.html`
 - Use `draft.pdf` only when the user explicitly prefers a static review file
-- Do not start final PowerPoint polishing until the user confirms the skeleton is stable
+- Do not begin any final production before Step 7 confirms the skeleton is stable
 - Treat the reviewed SVG/HTML draft as the **approved structure and visual intent**, not as a promise that direct SVG export will equal the final editable PPT
 
 **✅ Checkpoint — Human confirms the skeleton is locked for final production**:
@@ -390,17 +395,17 @@ During this loop:
 ## ✅ Human Review Loop Complete
 - [x] Skeleton confirmed by user
 - [x] `main_content.md` and handoff files updated to match the confirmed structure
-- [x] Selected final target recorded in `design_spec.md`
-- [ ] **Next**: Enter the Step 8 final-production router
+- [ ] **Review Skeleton**: Stop here; no final target is selected or produced
+- [ ] **Final-production mode**: Record the sole selected final target in `design_spec.md`, then enter the Step 8 router
 ```
 
 ---
 
 ### Step 8: Final Production Router
 
-🚧 **GATE**: Step 7 complete; the human has confirmed the skeleton, handoff files are up to date, and `design_spec.md` records one selected final target.
+🚧 **GATE**: Step 7 complete; the human has confirmed the skeleton, handoff files are up to date, and `design_spec.md` records one selected final target. Do not enter Step 8 for Review Skeleton.
 
-Do not create multiple final formats by default. Route only to the selected target:
+Route only to the selected target. Never produce more than one final format in a run:
 
 #### Single-file HTML Presentation
 
@@ -417,6 +422,8 @@ python3 ${SKILL_DIR}/scripts/build_single_html.py <project_path>
 ```
 
 Deliver `<project_path>/exports/<project_name>.single.html`. `preview/index.html` is not the final HTML.
+
+Never invoke Native Editable Handoff or Legacy Direct Export in this run.
 
 #### Native Editable Handoff
 
@@ -457,12 +464,15 @@ Handoff rule:
 - `ppt-master` owns structure, direction, review package, and the final native editable `.pptx`
 - `references/native-editable.md` defines the internal native rebuild rules
 - Once the project enters the native rebuild phase, do not return to `ppt-master` for layout polish unless the content structure changes substantially
+- Produce only the native editable PPTX in this run. Do not invoke the HTML or Legacy Direct Export paths.
 
 ---
 
 ## Legacy Compatibility Mode
 
 Only use this path when the user explicitly asks `ppt-master` to export PPTX directly, or when the native editable rebuild path is unavailable.
+
+In the Step 8 router, enter this branch only when **Legacy Direct Export** is the selected Deliverable Mode. Produce only the explicitly requested compatibility PPTX; do not invoke the HTML or Native Editable Handoff paths.
 
 🚧 **GATE**: A completed SVG draft exists and the user explicitly wants direct export from `ppt-master`.
 

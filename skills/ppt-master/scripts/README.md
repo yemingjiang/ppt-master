@@ -38,16 +38,17 @@ Use the workflow in one of these modes:
 
 Important:
 
+- Each run has exactly one Deliverable Mode. Review Skeleton: stop after Step 7 with no final target. Single-file HTML Presentation produces only final HTML; Native Editable Handoff produces only native editable PPTX; Legacy Direct Export produces only explicit compatibility PPTX.
 - `preview/index.html` is the main human review surface for structure and visual intent
 - `preview/index.html` is not the final HTML; it remains the review-only skeleton preview
-- Record one selected final target before final production. Do not create final HTML and PPTX artifacts simultaneously by default.
+- Record the sole final target only for a final-production mode, before its selected branch begins.
 - The SVG review draft is **not** a guarantee that direct `svg_to_pptx.py` export will be both faithful and editable in PowerPoint
 - Browser SVG preview and native PowerPoint text layout use different wrapping metrics; a slide that looks right in `preview/index.html` may still need PPT-side text-box tuning after native rebuild
 - If editability matters, prefer `Native Editable Handoff`
 
-Final polished deck:
+Final polished deck when Native Editable Handoff is selected:
 
-- By default, continue from the confirmed skeleton package into the internal native rebuild phase for native editable `.pptx` production
+- When Native Editable Handoff is selected, continue from the confirmed skeleton package into the internal native rebuild phase for native editable `.pptx` production
 - This downstream pass should rebuild meaningful text and recurring layout components as native PowerPoint objects
 - After native rebuild, render PPT-native slide previews and compare them against the approved review draft to catch wrap/overlap drift before delivery
 - Do not treat direct SVG conversion as the default final-editable path
