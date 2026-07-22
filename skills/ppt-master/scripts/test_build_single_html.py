@@ -11,6 +11,7 @@ from base64 import b64decode, b64encode
 from html import escape
 from pathlib import Path
 from unittest.mock import patch
+from urllib.parse import quote
 
 from bs4 import BeautifulSoup
 
@@ -820,6 +821,52 @@ class OfflineResourcePackagerTests(ProjectFixture):
                 with self.assertRaises(PackagingError):
                     _validate_offline_document(f'<iframe srcdoc="{escape(srcdoc, quote=True)}"></iframe>')
 
+    def test_final_validation_rejects_remote_dependency_inside_data_iframe(self) -> None:
+        iframe_html = '<script src="https://example.test/runtime.js"></script>'
+        data_uri = self.data_uri("text/html", iframe_html.encode("utf-8"))
+
+        with self.assertRaisesRegex(
+            PackagingError, r"iframe data URI.*https://example\.test/runtime\.js"
+        ):
+            _validate_offline_document(f'<iframe src="{data_uri}"></iframe>')
+
+    def test_final_validation_rejects_malformed_undecodable_and_non_html_data_iframes(self) -> None:
+        invalid_data_uris = (
+            "data:text/html;base64,not-base64!",
+            "data:text/html;base64,/w==",
+            "data:text/html,%ZZ",
+            "data:text/plain,%3Cp%3Enot%20html%3C%2Fp%3E",
+        )
+
+        for data_uri in invalid_data_uris:
+            with self.subTest(data_uri=data_uri):
+                with self.assertRaisesRegex(PackagingError, "iframe data URI"):
+                    _validate_offline_document(f'<iframe src="{data_uri}"></iframe>')
+
+    def test_final_validation_accepts_nested_base64_and_percent_encoded_data_iframes(self) -> None:
+        inner_html = '<img src="data:image/png;base64,AAAA">'
+        inner_data_uri = f"data:text/html;charset=utf-8,{quote(inner_html, safe='')}"
+        outer_html = f'<iframe src="{inner_data_uri}"></iframe>'
+        outer_data_uri = self.data_uri("text/html", outer_html.encode("utf-8"))
+
+        _validate_offline_document(f'<iframe src="{outer_data_uri}"></iframe>')
+
+    def test_final_validation_caps_data_iframe_nesting_depth(self) -> None:
+        document = "<p>deepest</p>"
+        for _ in range(20):
+            data_uri = self.data_uri("text/html", document.encode("utf-8"))
+            document = f'<iframe src="{data_uri}"></iframe>'
+
+        with self.assertRaisesRegex(PackagingError, "iframe nesting depth"):
+            _validate_offline_document(document)
+
+    def test_final_validation_caps_decoded_data_iframe_size(self) -> None:
+        data_uri = self.data_uri("text/html", b"<p>too large</p>")
+
+        with patch("build_single_html._MAX_DECODED_DATA_IFRAME_BYTES", 8):
+            with self.assertRaisesRegex(PackagingError, "decoded payload exceeds"):
+                _validate_offline_document(f'<iframe src="{data_uri}"></iframe>')
+
     def test_final_validation_allows_fragment_only_svg_references_and_external_anchors(self) -> None:
         _validate_offline_document(
             '<svg><image href="#paint"></image><feImage xlink:href="#filter"></feImage>'
@@ -955,6 +1002,20 @@ class BuildSingleHtmlTests(ProjectFixture):
         self.assertEqual(target.read_bytes(), original)
         self.assertEqual(list(target.parent.glob(f".{target.name}.*.tmp")), [])
 
+    def test_missing_notes_key_raises_with_slide_key_and_source(self) -> None:
+        manifest = json.loads(json.dumps(MANIFEST))
+        manifest["slides"][1]["notes_key"] = "missing-notes"
+        self.write_manifest(manifest)
+
+        with self.assertRaises(PackagingError) as caught:
+            build_single_html(self.project)
+
+        message = str(caught.exception)
+        self.assertIn("slides[1]", message)
+        self.assertIn("02", message)
+        self.assertIn("missing-notes", message)
+        self.assertIn(str(self.project / "notes" / "total.md"), message)
+
     def test_warns_when_the_generated_document_exceeds_100_mb(self) -> None:
         (self.project / "html_output" / "presentation.css").write_text(
             "/*" + ("x" * (100 * 1024 * 1024 + 1)) + "*/", encoding="utf-8"
@@ -976,6 +1037,23 @@ class BuildSingleHtmlTests(ProjectFixture):
         payload = json.loads(completed.stdout)
         self.assertEqual(payload["status"], "ok")
         self.assertEqual(payload["slides"], 2)
+        self.assertEqual(completed.stderr, "")
+
+    def test_cli_success_reports_human_readable_build_summary(self) -> None:
+        completed = subprocess.run(
+            [sys.executable, str(SCRIPT_DIR / "build_single_html.py"), str(self.project)],
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+
+        output = (self.project / "exports" / f"{self.project.name}.single.html").resolve()
+        self.assertEqual(completed.returncode, 0, completed.stderr)
+        self.assertIn(f"Saved: {output}", completed.stdout)
+        self.assertIn("Slides: 2", completed.stdout)
+        self.assertRegex(completed.stdout, r"Embedded resources: [1-9]\d*")
+        self.assertRegex(completed.stdout, r"Output bytes: [1-9]\d*")
+        self.assertIn("Warnings: none", completed.stdout)
         self.assertEqual(completed.stderr, "")
 
     def test_cli_help_includes_three_copyable_examples(self) -> None:
@@ -1007,6 +1085,25 @@ class BuildSingleHtmlTests(ProjectFixture):
         self.assertNotEqual(completed.returncode, 0)
         self.assertEqual(completed.stdout, "")
         self.assertIn("manifest not found", completed.stderr)
+
+    def test_cli_missing_notes_key_reports_slide_key_and_source_without_stdout(self) -> None:
+        manifest = json.loads(json.dumps(MANIFEST))
+        manifest["slides"][1]["notes_key"] = "missing-notes"
+        self.write_manifest(manifest)
+
+        completed = subprocess.run(
+            [sys.executable, str(SCRIPT_DIR / "build_single_html.py"), str(self.project)],
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+
+        self.assertNotEqual(completed.returncode, 0)
+        self.assertEqual(completed.stdout, "")
+        self.assertIn("slides[1]", completed.stderr)
+        self.assertIn("02", completed.stderr)
+        self.assertIn("missing-notes", completed.stderr)
+        self.assertIn(str(self.project / "notes" / "total.md"), completed.stderr)
 
     def test_cli_json_failure_is_a_single_machine_readable_error(self) -> None:
         completed = subprocess.run(

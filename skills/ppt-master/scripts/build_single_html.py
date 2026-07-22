@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import base64
+import binascii
 import html
 import json
 import mimetypes
@@ -11,7 +12,7 @@ import os
 import re
 import tempfile
 from pathlib import Path
-from urllib.parse import unquote, urlsplit
+from urllib.parse import unquote, unquote_to_bytes, urlsplit
 
 from bs4 import BeautifulSoup, Comment, NavigableString
 
@@ -23,6 +24,9 @@ HTML_PRESENTATION_ASSET_DIR = SKILL_DIR / "assets" / "html-presentation"
 _ASPECT_RATIO_PATTERN = re.compile(r"^\s*(\d+(?:\.\d+)?)\s*/\s*(\d+(?:\.\d+)?)\s*$")
 _TOKEN_NAME_PATTERN = re.compile(r"^[a-z][a-z0-9_-]*$")
 _CSS_HEX_COLOR_PATTERN = re.compile(r"^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$")
+_INVALID_PERCENT_ESCAPE_PATTERN = re.compile(r"%(?![0-9a-fA-F]{2})")
+_MAX_IFRAME_NESTING_DEPTH = 16
+_MAX_DECODED_DATA_IFRAME_BYTES = 128 * 1024 * 1024
 
 
 class PackagingError(ValueError):
@@ -488,6 +492,7 @@ def _read_text(path: Path, label: str) -> str:
 
 def _build_notes(manifest: dict[str, object], project_path: Path) -> dict[str, dict]:
     notes_by_key = parse_notes_total(project_path)
+    notes_source = project_path / "notes" / "total.md"
     notes: dict[str, dict] = {}
     slides = manifest.get("slides")
     if not isinstance(slides, list):
@@ -498,11 +503,94 @@ def _build_notes(manifest: dict[str, object], project_path: Path) -> dict[str, d
         notes_key = slide.get("notes_key", slide_id)
         if not isinstance(notes_key, str) or not notes_key:
             raise PackagingError(f"slides[{index}].notes_key must be a non-empty string")
-        notes[slide_id] = notes_by_key.get(notes_key, {})
+        if notes_key not in notes_by_key:
+            raise PackagingError(
+                f"slides[{index}] (slide id {slide_id!r}) notes_key {notes_key!r} "
+                f"was not found in speaker-notes source: {notes_source}"
+            )
+        notes[slide_id] = notes_by_key[notes_key]
     return notes
 
 
-def _validate_offline_document(document: str) -> None:
+def _decode_html_data_uri(reference: str) -> str:
+    """Decode a bounded HTML data URI or raise an actionable packaging error."""
+    data_uri = reference.strip()
+    try:
+        metadata, payload = data_uri[5:].split(",", 1)
+    except ValueError as error:
+        raise PackagingError("iframe data URI is malformed: missing payload separator") from error
+
+    metadata_parts = [part.strip() for part in metadata.split(";")]
+    if not metadata_parts or metadata_parts[0].lower() != "text/html":
+        media_type = metadata_parts[0] if metadata_parts else ""
+        raise PackagingError(
+            f"iframe data URI must use the text/html media type, got {media_type or 'none'}"
+        )
+
+    charset = "utf-8"
+    is_base64 = False
+    for parameter in metadata_parts[1:]:
+        if parameter.lower() == "base64":
+            if is_base64:
+                raise PackagingError("iframe data URI is malformed: duplicate base64 marker")
+            is_base64 = True
+            continue
+        if not parameter or "=" not in parameter:
+            raise PackagingError(
+                f"iframe data URI is malformed: invalid media-type parameter {parameter!r}"
+            )
+        name, value = (part.strip() for part in parameter.split("=", 1))
+        if not name or not value:
+            raise PackagingError(
+                f"iframe data URI is malformed: invalid media-type parameter {parameter!r}"
+            )
+        if name.lower() == "charset":
+            charset = value.strip("\"'")
+
+    if _INVALID_PERCENT_ESCAPE_PATTERN.search(payload):
+        raise PackagingError("iframe data URI is malformed: invalid percent escape in payload")
+    if len(payload) > _MAX_DECODED_DATA_IFRAME_BYTES * 4 + 4:
+        raise PackagingError(
+            "iframe data URI decoded payload exceeds "
+            f"{_MAX_DECODED_DATA_IFRAME_BYTES} bytes"
+        )
+
+    encoded_payload = unquote_to_bytes(payload)
+    if is_base64:
+        maximum_base64_bytes = 4 * ((_MAX_DECODED_DATA_IFRAME_BYTES + 2) // 3)
+        if len(encoded_payload) > maximum_base64_bytes:
+            raise PackagingError(
+                "iframe data URI decoded payload exceeds "
+                f"{_MAX_DECODED_DATA_IFRAME_BYTES} bytes"
+            )
+        try:
+            decoded_payload = base64.b64decode(encoded_payload, validate=True)
+        except (binascii.Error, ValueError) as error:
+            raise PackagingError("iframe data URI contains malformed base64 payload") from error
+    else:
+        decoded_payload = encoded_payload
+
+    if len(decoded_payload) > _MAX_DECODED_DATA_IFRAME_BYTES:
+        raise PackagingError(
+            "iframe data URI decoded payload exceeds "
+            f"{_MAX_DECODED_DATA_IFRAME_BYTES} bytes"
+        )
+    try:
+        return decoded_payload.decode(charset)
+    except LookupError as error:
+        raise PackagingError(f"iframe data URI declares unsupported charset {charset!r}") from error
+    except UnicodeDecodeError as error:
+        raise PackagingError(
+            f"iframe data URI payload is not decodable as charset {charset!r}"
+        ) from error
+
+
+def _validate_offline_document(
+    document: str,
+    *,
+    _iframe_depth: int = 0,
+    _active_data_iframes: tuple[str, ...] = (),
+) -> None:
     """Reject remaining local or remote runtime resource references before writing."""
     soup = BeautifulSoup(document, "html.parser")
     for tag_name, attributes in RESOURCE_ATTRS.items():
@@ -522,12 +610,37 @@ def _validate_offline_document(document: str) -> None:
                         raise PackagingError(f"unresolved runtime resource remains in output: {item}")
 
     for iframe in soup.find_all("iframe"):
+        if _iframe_depth >= _MAX_IFRAME_NESTING_DEPTH:
+            raise PackagingError(
+                f"iframe nesting depth exceeds {_MAX_IFRAME_NESTING_DEPTH} levels"
+            )
         if iframe.has_attr("srcdoc"):
-            _validate_offline_document(iframe.get("srcdoc", ""))
+            _validate_offline_document(
+                iframe.get("srcdoc", ""),
+                _iframe_depth=_iframe_depth + 1,
+                _active_data_iframes=_active_data_iframes,
+            )
             continue
         reference = iframe.get("src")
-        if reference and not reference.strip().lower().startswith("data:text/html;base64,"):
+        if not reference:
+            continue
+        normalized_reference = reference.strip()
+        if not normalized_reference.lower().startswith("data:"):
             raise PackagingError(f"unresolved iframe remains in output: {reference}")
+        if normalized_reference in _active_data_iframes:
+            raise PackagingError("iframe data URI cycle detected in nested iframe chain")
+        iframe_document = _decode_html_data_uri(normalized_reference)
+        try:
+            _validate_offline_document(
+                iframe_document,
+                _iframe_depth=_iframe_depth + 1,
+                _active_data_iframes=(*_active_data_iframes, normalized_reference),
+            )
+        except PackagingError as error:
+            raise PackagingError(
+                f"iframe data URI at nesting level {_iframe_depth + 1} "
+                f"contains invalid offline document: {error}"
+            ) from error
     for link in soup.find_all("link"):
         rel = {value.lower() for value in link.get("rel", [])}
         if "stylesheet" in rel:
@@ -656,8 +769,13 @@ def main() -> int:
     if args.json:
         print(json.dumps(result, ensure_ascii=False, separators=(",", ":")))
     else:
-        print(f"Built single-file HTML presentation: {result['output_html']}")
-        for warning in result["warnings"]:
+        print(f"Saved: {result['output_html']}")
+        print(f"Slides: {result['slides']}")
+        print(f"Embedded resources: {result['embedded_assets']}")
+        print(f"Output bytes: {result['bytes']}")
+        warnings = result["warnings"]
+        print(f"Warnings: {len(warnings)} (details on stderr)" if warnings else "Warnings: none")
+        for warning in warnings:
             print(f"Warning: {warning}", file=os.sys.stderr)
     return 0
 
