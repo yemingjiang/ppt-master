@@ -9,6 +9,7 @@ import tempfile
 import unittest
 from base64 import b64decode, b64encode
 from pathlib import Path
+from unittest.mock import patch
 
 from bs4 import BeautifulSoup
 
@@ -20,6 +21,8 @@ if str(SCRIPT_DIR) not in sys.path:
 from build_single_html import (
     OfflineResourcePackager,
     PackagingError,
+    _validate_offline_document,
+    _write_atomically,
     build_single_html,
     load_manifest,
     render_document,
@@ -364,6 +367,8 @@ class OfflineResourcePackagerTests(ProjectFixture):
         (self.images / "demo.mp4").write_bytes(self.video)
         (self.images / "narration.mp3").write_bytes(self.audio)
         (self.images / "demo.woff2").write_bytes(self.font)
+        (self.images / "captions.vtt").write_text("WEBVTT", encoding="utf-8")
+        (self.images / "module.js").write_text("export default 1;", encoding="utf-8")
         self.slide_path = self.project / "html_output" / "slides" / "01_cover.html"
 
     def data_uri(self, media_type: str, contents: bytes) -> str:
@@ -547,6 +552,117 @@ class OfflineResourcePackagerTests(ProjectFixture):
         with self.assertRaisesRegex(PackagingError, "MIME type"):
             packager.rewrite_html('<img src="../../images/required-resource.unknown">', self.slide_path)
 
+    def test_embeds_extended_runtime_fetching_attributes_and_preserves_svg_fragments(self) -> None:
+        packager = OfflineResourcePackager(self.project)
+        source = """
+        <track src="../../images/captions.vtt">
+        <object data="../../images/chart.png"></object>
+        <embed src="../../images/chart.png">
+        <svg>
+          <image href="../../images/chart.png"></image>
+          <feImage xlink:href="../../images/chart.png"></feImage>
+          <image href="#paint"></image>
+          <use href="#symbol"></use>
+          <use xlink:href="#symbol-two"></use>
+        </svg>
+        <link rel="icon" href="../../images/chart.png">
+        <link rel="preload" href="../../images/demo.woff2">
+        <link rel="modulepreload" href="../../images/module.js">
+        <a href="https://example.test/keep">Keep this link</a>
+        """
+
+        rewritten = packager.rewrite_html(source, self.slide_path)
+
+        self.assertIn('src="data:text/vtt;base64,', rewritten)
+        self.assertGreaterEqual(rewritten.count(self.data_uri("image/png", self.chart)), 5)
+        self.assertIn(self.data_uri("font/woff2", self.font), rewritten)
+        self.assertIn('href="data:text/javascript;base64,', rewritten)
+        self.assertIn('href="#paint"', rewritten)
+        self.assertIn('href="#symbol"', rewritten)
+        self.assertIn('xlink:href="#symbol-two"', rewritten)
+        self.assertIn('href="https://example.test/keep"', rewritten)
+        self.assertNotIn("../../images/", rewritten)
+
+    def test_rejects_extended_remote_resources_and_external_svg_use(self) -> None:
+        packager = OfflineResourcePackager(self.project)
+        for markup in (
+            '<track src="https://example.test/captions.vtt">',
+            '<object data="https://example.test/object">',
+            '<embed src="https://example.test/embed">',
+            '<svg><image href="https://example.test/image.png"></image></svg>',
+            '<svg><feImage xlink:href="https://example.test/image.png"></feImage></svg>',
+            '<link rel="icon" href="https://example.test/icon.png">',
+            '<link rel="preload" href="https://example.test/font.woff2">',
+            '<link rel="modulepreload" href="https://example.test/module.js">',
+            '<svg><use href="../../images/symbols.svg#symbol"></use></svg>',
+            '<svg><use xlink:href="https://example.test/symbols.svg#symbol"></use></svg>',
+        ):
+            with self.subTest(markup=markup):
+                with self.assertRaisesRegex(PackagingError, "remote runtime|external SVG <use>"):
+                    packager.rewrite_html(markup, self.slide_path)
+
+    def test_final_validation_rejects_extended_unresolved_runtime_references(self) -> None:
+        for document in (
+            '<track src="local.vtt">',
+            '<object data="local.html"></object>',
+            '<embed src="local.pdf">',
+            '<svg><image href="local.png"></image></svg>',
+            '<svg><feImage xlink:href="local.png"></feImage></svg>',
+            '<link rel="icon" href="local.png">',
+            '<link rel="preload" href="local.woff2">',
+            '<link rel="modulepreload" href="local.js">',
+            '<svg><use href="local.svg#symbol"></use></svg>',
+        ):
+            with self.subTest(document=document):
+                with self.assertRaises(PackagingError):
+                    _validate_offline_document(document)
+
+    def test_final_validation_allows_fragment_only_svg_references_and_external_anchors(self) -> None:
+        _validate_offline_document(
+            '<svg><image href="#paint"></image><feImage xlink:href="#filter"></feImage>'
+            '<use href="#symbol"></use><use xlink:href="#symbol-two"></use></svg>'
+            '<a href="https://example.test/keep">Keep</a>'
+        )
+
+
+class AtomicWriteTests(ProjectFixture):
+    def test_reports_bytes_without_calling_path_stat_after_replacement(self) -> None:
+        target = self.project / "exports" / "deck.single.html"
+        target.parent.mkdir()
+        document = "<html>new</html>"
+
+        with patch.object(Path, "stat", side_effect=AssertionError("stat must not run after replacement")):
+            bytes_written = _write_atomically(target, document)
+
+        self.assertEqual(bytes_written, len(document.encode("utf-8")))
+        self.assertEqual(target.read_text(encoding="utf-8"), document)
+
+    def test_removes_temp_file_when_the_atomic_write_fails(self) -> None:
+        target = self.project / "exports" / "deck.single.html"
+        target.parent.mkdir()
+        target.write_text("existing", encoding="utf-8")
+        temporary_path = target.parent / ".deck.single.html.failure.tmp"
+        temporary_path.write_text("partial", encoding="utf-8")
+
+        class FailingTemporaryFile:
+            name = str(temporary_path)
+
+            def __enter__(self) -> "FailingTemporaryFile":
+                return self
+
+            def __exit__(self, *_args: object) -> bool:
+                return False
+
+            def write(self, _document: str) -> int:
+                raise OSError("simulated write failure")
+
+        with patch("build_single_html.tempfile.NamedTemporaryFile", return_value=FailingTemporaryFile()):
+            with self.assertRaisesRegex(OSError, "simulated write failure"):
+                _write_atomically(target, "replacement")
+
+        self.assertEqual(target.read_text(encoding="utf-8"), "existing")
+        self.assertFalse(temporary_path.exists())
+
 
 class BuildSingleHtmlTests(ProjectFixture):
     def setUp(self) -> None:
@@ -659,6 +775,23 @@ class BuildSingleHtmlTests(ProjectFixture):
         self.assertEqual(payload["slides"], 2)
         self.assertEqual(completed.stderr, "")
 
+    def test_cli_help_includes_three_copyable_examples(self) -> None:
+        completed = subprocess.run(
+            [sys.executable, str(SCRIPT_DIR / "build_single_html.py"), "--help"],
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+
+        self.assertEqual(completed.returncode, 0, completed.stderr)
+        for example in (
+            "python3 build_single_html.py projects/quarterly-review",
+            "python3 build_single_html.py projects/quarterly-review --output exports/review.html",
+            "python3 build_single_html.py projects/quarterly-review --json",
+        ):
+            self.assertIn(example, completed.stdout)
+        self.assertEqual(completed.stderr, "")
+
     def test_cli_invalid_project_reports_an_actionable_error_without_stdout(self) -> None:
         missing_project = self.project / "missing"
         completed = subprocess.run(
@@ -671,6 +804,20 @@ class BuildSingleHtmlTests(ProjectFixture):
         self.assertNotEqual(completed.returncode, 0)
         self.assertEqual(completed.stdout, "")
         self.assertIn("manifest not found", completed.stderr)
+
+    def test_cli_json_failure_is_a_single_machine_readable_error(self) -> None:
+        completed = subprocess.run(
+            [sys.executable, str(SCRIPT_DIR / "build_single_html.py"), str(self.project / "missing"), "--json"],
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+
+        self.assertNotEqual(completed.returncode, 0)
+        payload = json.loads(completed.stdout)
+        self.assertEqual(payload["status"], "error")
+        self.assertIn("manifest not found", payload["error"])
+        self.assertEqual(completed.stderr, "")
 
 
 if __name__ == "__main__":

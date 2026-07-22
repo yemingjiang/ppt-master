@@ -34,6 +34,19 @@ RESOURCE_ATTRS = {
     "video": ("src", "poster"),
     "audio": ("src",),
     "source": ("src", "srcset"),
+    "track": ("src",),
+    "object": ("data",),
+    "embed": ("src",),
+    "image": ("href", "xlink:href"),
+    "feimage": ("href", "xlink:href"),
+}
+
+LINK_RESOURCE_RELS = {"icon", "preload", "modulepreload"}
+SVG_FRAGMENT_RESOURCE_ATTRS = {
+    ("image", "href"),
+    ("image", "xlink:href"),
+    ("feimage", "href"),
+    ("feimage", "xlink:href"),
 }
 
 REMOTE_SCHEMES = {"http", "https", "file", "blob"}
@@ -65,6 +78,20 @@ _CSS_IMPORT_PATTERN = re.compile(
 )
 
 
+def _matching_tags(soup: BeautifulSoup, tag_name: str) -> list:
+    """Return HTML-parser tags by case-insensitive name, including SVG camel case."""
+    return soup.find_all(lambda tag: getattr(tag, "name", "").lower() == tag_name)
+
+
+def _is_embedded_reference(reference: str, allow_fragment: bool = False) -> bool:
+    normalized = reference.strip().lower()
+    return normalized.startswith("data:") or (allow_fragment and normalized.startswith("#"))
+
+
+def _allows_fragment_reference(tag_name: str, attribute: str) -> bool:
+    return (tag_name, attribute) in SVG_FRAGMENT_RESOURCE_ATTRS
+
+
 class OfflineResourcePackager:
     """Embed project-local runtime assets into HTML and CSS data URIs."""
 
@@ -84,7 +111,7 @@ class OfflineResourcePackager:
         soup = BeautifulSoup(html_text, "html.parser")
 
         for tag_name, attributes in RESOURCE_ATTRS.items():
-            for tag in soup.find_all(tag_name):
+            for tag in _matching_tags(soup, tag_name):
                 for attribute in attributes:
                     reference = tag.get(attribute)
                     if not reference:
@@ -102,9 +129,10 @@ class OfflineResourcePackager:
             style.clear()
             style.append(NavigableString(self.rewrite_css(css_text, source_path)))
 
-        self._rewrite_stylesheets(soup, source_path, iframe_stack)
-        self._rewrite_scripts(soup, source_path, iframe_stack)
+        self._rewrite_stylesheets(soup, source_path)
+        self._rewrite_scripts(soup, source_path)
         self._rewrite_iframes(soup, source_path, iframe_stack)
+        self._reject_external_svg_use(soup)
         return str(soup)
 
     def rewrite_css(self, css_text: str, source_path: Path) -> str:
@@ -211,16 +239,17 @@ class OfflineResourcePackager:
             return f"@media {media} {{\n{inlined_css}\n}}"
         return inlined_css
 
-    def _rewrite_stylesheets(
-        self, soup: BeautifulSoup, source_path: Path, iframe_stack: tuple[Path, ...]
-    ) -> None:
+    def _rewrite_stylesheets(self, soup: BeautifulSoup, source_path: Path) -> None:
         for link in list(soup.find_all("link")):
             rel = {value.lower() for value in link.get("rel", [])}
-            if "stylesheet" not in rel or not link.get("href"):
+            reference = link.get("href")
+            if not reference:
                 continue
-            stylesheet_path = self._resolve_resource(link["href"], source_path)
-            if not iframe_stack:
+            if "stylesheet" not in rel:
+                if rel.intersection(LINK_RESOURCE_RELS):
+                    link["href"] = self._rewrite_reference(reference, source_path)
                 continue
+            stylesheet_path = self._resolve_resource(reference, source_path)
             try:
                 css_text = stylesheet_path.read_text(encoding="utf-8")
             except OSError as error:
@@ -229,16 +258,12 @@ class OfflineResourcePackager:
             style.append(NavigableString(self.rewrite_css(css_text, stylesheet_path)))
             link.replace_with(style)
 
-    def _rewrite_scripts(
-        self, soup: BeautifulSoup, source_path: Path, iframe_stack: tuple[Path, ...]
-    ) -> None:
+    def _rewrite_scripts(self, soup: BeautifulSoup, source_path: Path) -> None:
         for script in soup.find_all("script"):
             reference = script.get("src")
             if not reference:
                 continue
             script_path = self._resolve_resource(reference, source_path)
-            if not iframe_stack:
-                continue
             try:
                 script_text = script_path.read_text(encoding="utf-8")
             except OSError as error:
@@ -246,6 +271,16 @@ class OfflineResourcePackager:
             del script["src"]
             script.clear()
             script.append(NavigableString(script_text))
+
+    def _reject_external_svg_use(self, soup: BeautifulSoup) -> None:
+        for use in _matching_tags(soup, "use"):
+            for attribute in ("href", "xlink:href"):
+                reference = use.get(attribute)
+                if reference and not reference.strip().startswith("#"):
+                    raise PackagingError(
+                        "external SVG <use> references are not supported; use a fragment-only reference instead: "
+                        f"{reference}"
+                    )
 
     def _rewrite_iframes(
         self, soup: BeautifulSoup, source_path: Path, iframe_stack: tuple[Path, ...]
@@ -462,7 +497,7 @@ def _validate_offline_document(document: str) -> None:
     """Reject remaining local or remote runtime resource references before writing."""
     soup = BeautifulSoup(document, "html.parser")
     for tag_name, attributes in RESOURCE_ATTRS.items():
-        for tag in soup.find_all(tag_name):
+        for tag in _matching_tags(soup, tag_name):
             for attribute in attributes:
                 reference = tag.get(attribute)
                 if not reference:
@@ -472,7 +507,9 @@ def _validate_offline_document(document: str) -> None:
                 else:
                     references = [reference]
                 for item in references:
-                    if not item.strip().lower().startswith("data:"):
+                    if not _is_embedded_reference(
+                        item, _allows_fragment_reference(tag_name, attribute)
+                    ):
                         raise PackagingError(f"unresolved runtime resource remains in output: {item}")
 
     for iframe in soup.find_all("iframe"):
@@ -483,9 +520,21 @@ def _validate_offline_document(document: str) -> None:
         rel = {value.lower() for value in link.get("rel", [])}
         if "stylesheet" in rel:
             raise PackagingError(f"unresolved stylesheet remains in output: {link.get('href', '')}")
+        if rel.intersection(LINK_RESOURCE_RELS):
+            reference = link.get("href")
+            if reference and not _is_embedded_reference(reference):
+                raise PackagingError(f"unresolved runtime link remains in output: {reference}")
     for script in soup.find_all("script"):
         if script.get("src"):
             raise PackagingError(f"unresolved script remains in output: {script['src']}")
+    for use in _matching_tags(soup, "use"):
+        for attribute in ("href", "xlink:href"):
+            reference = use.get(attribute)
+            if reference and not reference.strip().startswith("#"):
+                raise PackagingError(
+                    "external SVG <use> reference remains in output; only fragment-only references are supported: "
+                    f"{reference}"
+                )
 
 
 def _default_output_path(project_path: Path) -> Path:
@@ -495,18 +544,18 @@ def _default_output_path(project_path: Path) -> Path:
 def _write_atomically(output_path: Path, document: str) -> int:
     """Write a complete document beside its target, then replace the target once."""
     output_path.parent.mkdir(parents=True, exist_ok=True)
+    payload = document.encode("utf-8")
     temporary_path: Path | None = None
     try:
         with tempfile.NamedTemporaryFile(
-            mode="w",
-            encoding="utf-8",
+            mode="wb",
             dir=output_path.parent,
             prefix=f".{output_path.name}.",
             suffix=".tmp",
             delete=False,
         ) as temporary_file:
             temporary_path = Path(temporary_file.name)
-            temporary_file.write(document)
+            temporary_file.write(payload)
             temporary_file.flush()
             os.fsync(temporary_file.fileno())
         os.replace(temporary_path, output_path)
@@ -517,7 +566,7 @@ def _write_atomically(output_path: Path, document: str) -> int:
                 temporary_path.unlink()
             except FileNotFoundError:
                 pass
-    return output_path.stat().st_size
+    return len(payload)
 
 
 def build_single_html(project_path: Path, output_path: Path | None = None) -> dict[str, object]:
