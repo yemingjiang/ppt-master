@@ -16,6 +16,7 @@ from bs4 import BeautifulSoup
 
 
 SCRIPT_DIR = Path(__file__).parent
+SKILL_DIR = SCRIPT_DIR.parent
 if str(SCRIPT_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPT_DIR))
 
@@ -77,6 +78,66 @@ class ProjectFixture(unittest.TestCase):
     def write_manifest(self, manifest: dict[str, object]) -> None:
         path = self.project / "html_output" / "presentation.json"
         path.write_text(json.dumps(manifest, ensure_ascii=False), encoding="utf-8")
+
+
+class HtmlPresentationDocumentationContractTests(unittest.TestCase):
+    """Keep the agent-facing final-HTML workflow discoverable and unambiguous."""
+
+    def test_primary_docs_name_the_final_html_contract(self) -> None:
+        documents = (
+            (SKILL_DIR / "SKILL.md").read_text(encoding="utf-8"),
+            (SKILL_DIR / "references" / "html-presentation.md").read_text(encoding="utf-8"),
+            (SKILL_DIR / "templates" / "design_spec_reference.md").read_text(
+                encoding="utf-8"
+            ),
+        )
+
+        for required_text in (
+            "Single-file HTML Presentation",
+            "references/html-presentation.md",
+            "scripts/build_single_html.py",
+            "html_output/presentation.json",
+            "exports/<project_name>.single.html",
+        ):
+            self.assertTrue(
+                any(required_text in document for document in documents), required_text
+            )
+
+    def test_skill_routes_final_html_to_its_dedicated_reference(self) -> None:
+        skill = (SKILL_DIR / "SKILL.md").read_text(encoding="utf-8")
+
+        self.assertIn("Single-file HTML Presentation", skill)
+        self.assertIn("references/html-presentation.md", skill)
+        self.assertIn("scripts/build_single_html.py", skill)
+        self.assertIn("preview/index.html", skill)
+        self.assertIn("is not the final HTML", skill)
+        self.assertIn("only one final target is selected", skill)
+
+    def test_html_reference_documents_source_and_delivery_contract(self) -> None:
+        reference = (SKILL_DIR / "references" / "html-presentation.md").read_text(
+            encoding="utf-8"
+        )
+
+        for required_text in (
+            "html_output/presentation.json",
+            "exports/<project_name>.single.html",
+            "scripts/build_single_html.py",
+            "pm-slide",
+            "data-slide-id",
+            "iframe",
+            "speaker notes",
+            "offline",
+        ):
+            self.assertIn(required_text, reference)
+
+    def test_design_spec_records_html_mode_details(self) -> None:
+        template = (SKILL_DIR / "templates" / "design_spec_reference.md").read_text(
+            encoding="utf-8"
+        )
+
+        self.assertIn("Single-file HTML Presentation", template)
+        self.assertIn("HTML Presentation", template)
+        self.assertIn("html_output/presentation.json", template)
 
 
 class LoadManifestTests(ProjectFixture):

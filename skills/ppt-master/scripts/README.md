@@ -32,12 +32,15 @@ python3 scripts/build_preview_html.py <project_path> --source output
 Use the workflow in one of these modes:
 
 - **Review Skeleton** — default; stop after the skeleton package and `preview/index.html`
+- **Single-file HTML Presentation** — final offline HTML; after review, author `html_output/` and package `exports/<project_name>.single.html`
 - **Native Editable Handoff** — default whenever the user wants a final editable `.pptx`; continue from the confirmed skeleton package into the internal native rebuild phase
 - **Legacy Direct Export** — only when the user explicitly asks `ppt-master` itself to export PPTX directly, or when the native editable rebuild path is unavailable
 
 Important:
 
 - `preview/index.html` is the main human review surface for structure and visual intent
+- `preview/index.html` is not the final HTML; it remains the review-only skeleton preview
+- Record one selected final target before final production. Do not create final HTML and PPTX artifacts simultaneously by default.
 - The SVG review draft is **not** a guarantee that direct `svg_to_pptx.py` export will be both faithful and editable in PowerPoint
 - Browser SVG preview and native PowerPoint text layout use different wrapping metrics; a slide that looks right in `preview/index.html` may still need PPT-side text-box tuning after native rebuild
 - If editability matters, prefer `Native Editable Handoff`
@@ -48,6 +51,15 @@ Final polished deck:
 - This downstream pass should rebuild meaningful text and recurring layout components as native PowerPoint objects
 - After native rebuild, render PPT-native slide previews and compare them against the approved review draft to catch wrap/overlap drift before delivery
 - Do not treat direct SVG conversion as the default final-editable path
+
+Final offline HTML presentation:
+
+```bash
+python3 scripts/build_single_html.py <project_path>
+# Output: <project_path>/exports/<project_name>.single.html
+```
+
+Before authoring `html_output/`, read `../references/html-presentation.md`. The builder packages `html_output/presentation.json`, slide fragments, notes, and project-local resources into the final offline artifact.
 
 Legacy direct export from `ppt-master` (explicit request only):
 
@@ -71,6 +83,7 @@ python3 scripts/update_repo.py
 | Project management | `project_manager.py`, `batch_validate.py`, `generate_examples_index.py`, `error_helper.py`, `pptx_template_import.py`, `clean_pptx_placeholders.py` | [docs/project.md](./docs/project.md) |
 | Skeleton docs | `generate_skeleton_docs.py` | this README |
 | Draft preview | `build_preview_html.py` | this README |
+| Final offline HTML | `build_single_html.py` | [../references/html-presentation.md](../references/html-presentation.md) |
 | SVG pipeline / legacy export | `finalize_svg.py`, `svg_to_pptx.py`, `total_md_split.py`, `svg_quality_checker.py` | [docs/svg-pipeline.md](./docs/svg-pipeline.md) |
 | Image tools | `image_gen.py` (local fallback), `analyze_images.py`, `gemini_watermark_remover.py` | [docs/image.md](./docs/image.md) |
 | Repo maintenance | `update_repo.py` | README install/update section |
@@ -100,6 +113,12 @@ Draft review:
 ```bash
 python3 scripts/generate_skeleton_docs.py <project_path> --overwrite
 python3 scripts/build_preview_html.py <project_path> --source output
+```
+
+Final offline HTML:
+
+```bash
+python3 scripts/build_single_html.py <project_path>
 ```
 
 Template source import:
@@ -154,6 +173,7 @@ python3 scripts/update_repo.py --skip-pip
 - Prefer `generate_skeleton_docs.py` to keep `main_content.md`, `style_sheet.md`, and `asset_manifest.md` synchronized
 - Prefer `preview/index.html` over static PDF when reviewing draft skeletons
 - Treat `preview/index.html` as the main review entry point. In Codex desktop, return its absolute file URL to the user.
+- Treat `preview/index.html` as a review artifact, not the final HTML. For the selected HTML final target, author `html_output/` under `references/html-presentation.md` and run `build_single_html.py`.
 - `preview/index.html` opened via `file://` should support the no-server review loop: keep comments in local browser storage, then use copy-all and paste the review comments back to Codex
 - After Codex applies the pasted review and rebuilds `preview/index.html`, treat that rebuilt file as the next review round; old local comments should not carry over
 - Prefer continuing from the confirmed skeleton package into the internal native rebuild phase for final editable production

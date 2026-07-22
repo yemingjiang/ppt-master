@@ -1,4 +1,4 @@
-# PPT Master — AI builds review-first presentation skeletons and native-editable PPTX from any document
+# PPT Master — AI builds review-first presentation skeletons, offline HTML, and native-editable PPTX from any document
 
 [![Version](https://img.shields.io/badge/version-v2.3.0-blue.svg)](https://github.com/hugohe3/ppt-master/releases)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
@@ -19,9 +19,9 @@ English | [中文](./README_CN.md)
 
 ---
 
-Drop in a PDF, DOCX, URL, or Markdown — get back a **reviewable presentation skeleton first** (`main_content.md`, `design_spec.md`, `preview/index.html`), then a **native-editable PowerPoint** when the structure is approved.
+Drop in a PDF, DOCX, URL, or Markdown — get back a **reviewable presentation skeleton first** (`main_content.md`, `design_spec.md`, `preview/index.html`), then one selected final target when the structure is approved: an **offline single-file HTML presentation** or a **native-editable PowerPoint**.
 
-> **How it works** — PPT Master is a workflow (a "skill") designed for human–AI collaboration inside the **Codex app** (and other AI IDEs like Claude Code, Cursor, or VS Code + Copilot). You chat with the AI — "make a deck from this PDF" — and it first builds a reviewable skeleton package and an **HTML draft** on your computer. You then open that HTML draft right in the Codex app, **flip through the slides and annotate them in your browser** (rename a title, sharpen a takeaway, swap an asset, reorder pages), click **"Copy all comments"**, and paste them back into the chat. The AI applies your comments and rebuilds the draft — you loop with it until the structure is right. **Only when you approve** does the same workflow continue internally into a native editable rebuild step that produces the final `.pptx`. No coding on your side; the IDE is just where the conversation happens.
+> **How it works** — PPT Master is a workflow (a "skill") designed for human–AI collaboration inside the **Codex app** (and other AI IDEs like Claude Code, Cursor, or VS Code + Copilot). You chat with the AI — "make a deck from this PDF" — and it first builds a reviewable skeleton package and an **HTML draft** on your computer. You then open that HTML draft right in the Codex app, **flip through the slides and annotate them in your browser** (rename a title, sharpen a takeaway, swap an asset, reorder pages), click **"Copy all comments"**, and paste them back into the chat. The AI applies your comments and rebuilds the draft — you loop with it until the structure is right. **Only when you approve** does the same workflow produce the selected final target: an offline single-file HTML presentation or a native editable `.pptx`. No coding on your side; the IDE is just where the conversation happens.
 >
 > **What you'll do**: install Python, install an AI IDE, drop in your material. First-time setup is about 15 minutes. Each deck takes ~10–20 minutes of back-and-forth with the AI.
 
@@ -29,7 +29,8 @@ PPT Master is different:
 
 - **Review-first, editable-final** — instead of pretending one pass can do everything, PPT Master gets the structure reviewed first and only then rebuilds the final deck natively for manual editing
 - **You stay in the loop** — review the HTML draft in the Codex app, annotate slides directly in the browser, copy your comments back to the AI, and iterate until the structure is locked before any final render
-- **Real PowerPoint where it matters** — the preferred final path is a native editable rebuild, not a screenshot export or a flattened web snapshot
+- **Choose the final format after review** — deliver either an offline single-file HTML presentation or a native editable PowerPoint; one confirmed run has one final target by default
+- **Real PowerPoint where it matters** — the preferred PPTX path is a native editable rebuild, not a screenshot export or a flattened web snapshot
 - **Transparent, predictable cost** — the tool is free and open source; the only cost is your own AI editor, and you know exactly what you're paying. As low as **$0.08/deck** with VS Code Copilot
 - **Data stays local** — your files shouldn't have to be uploaded to someone else's server just to make a presentation. Apart from AI model communication, the entire pipeline runs on your machine
 - **No platform lock-in** — your workflow shouldn't be held hostage by any single company. Works with Claude Code, Cursor, VS Code Copilot, and more; supports Claude, GPT, Gemini, Kimi, and other models
@@ -150,11 +151,17 @@ The AI handles the full pipeline end-to-end — content analysis, design spec, S
 3. Click **"Copy all comments"** and paste them back into the chat.
 4. The AI applies your comments, rebuilds the draft, and you repeat until the skeleton is right.
 
-Once you confirm the structure is locked, the workflow continues internally into the native editable rebuild step to produce the final `.pptx`.
+Once you confirm the structure is locked, choose the final target: offline HTML or native editable `.pptx`. The workflow produces only that selected final format by default.
 
 > **Default output:** a reviewable skeleton package in the project directory — `main_content.md`, `design_spec.md`, `style_sheet.md`, `asset_manifest.md`, `notes/`, `svg_output/`, and `preview/index.html` (the draft you review and annotate).
 >
 > **Final editable output:** once you approve the skeleton, ppt-master continues automatically into its built-in [native editable rebuild step](./skills/ppt-master/references/native-editable.md) to produce the final `.pptx`.
+
+> **Final offline HTML output:** once you approve the skeleton and select HTML delivery, ppt-master follows the [single-file HTML presentation reference](./skills/ppt-master/references/html-presentation.md) and builds `exports/<project_name>.single.html`. `preview/index.html` remains the review draft; it is not the final HTML.
+
+```bash
+python3 skills/ppt-master/scripts/build_single_html.py <project_path>
+```
 >
 > **Legacy compatibility output:** `ppt-master` can still export `.pptx` directly through `svg_to_pptx.py`, but that is now an explicit compatibility path rather than the preferred editable-delivery route.
 
@@ -188,6 +195,7 @@ Run `python3 skills/ppt-master/scripts/image_gen.py --list-backends` to see tier
 |---|----------|-------------|
 | 🪟 | [Windows Installation](./docs/windows-installation.md) | Step-by-step setup guide for Windows users |
 | 📖 | [SKILL.md](./skills/ppt-master/SKILL.md) | Core workflow and rules |
+| 🌐 | [Single-file HTML Presentation](./skills/ppt-master/references/html-presentation.md) | Final offline HTML authoring and packaging rules |
 | 🧱 | [Native Editable Rebuild](./skills/ppt-master/references/native-editable.md) | Final native editable rebuild step (built into the main skill) |
 | 📐 | [Canvas Formats](./skills/ppt-master/references/canvas-formats.md) | PPT 16:9, Xiaohongshu, WeChat, and 10+ formats |
 | 🛠️ | [Scripts & Tools](./skills/ppt-master/scripts/README.md) | All scripts and commands |

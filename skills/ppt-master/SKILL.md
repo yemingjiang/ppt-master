@@ -1,13 +1,12 @@
 ---
 name: ppt-master
-description: Use when explicitly asked to run ppt-master for a presentation outline,
-  draft, or handoff package.
+description: Use when asked to create a presentation outline, review draft, final offline single-file HTML presentation, or editable PPTX with ppt-master.
 ---
 # PPT Master Skill
 
 > Skeleton-first presentation workflow. Converts source documents into a reviewable presentation skeleton, fast HTML visual draft, and native-editable handoff package.
 
-**Default Pipeline**: `Source Document → Create Project → Template Option → Strategist → [Image_Generator] → Skeleton Executor → Human Review Loop → Native Editable Rebuild`
+**Default Pipeline**: `Source Document → Create Project → Template Option → Strategist → [Image_Generator] → Skeleton Executor → Human Review Loop → Final Production Router`
 
 **Legacy Compatibility Pipeline**: `Source Document → Create Project → Template Option → Strategist → [Image_Generator] → SVG Executor → Post-processing → Export`
 
@@ -21,8 +20,8 @@ description: Use when explicitly asked to run ppt-master for a presentation outl
 > 3. **NO CROSS-PHASE BUNDLING** — Cross-phase bundling is FORBIDDEN. (Note: the Eight Confirmations in Step 4 are ⛔ BLOCKING — the AI MUST present recommendations and wait for explicit user confirmation before proceeding. Once the user confirms, all subsequent non-BLOCKING steps — design spec output, draft generation, and preview packaging — may proceed automatically without further user confirmation)
 > 4. **GATE BEFORE ENTRY** — Each Step has prerequisites (🚧 GATE) listed at the top; these MUST be verified before starting that Step
 > 5. **NO SPECULATIVE EXECUTION** — "Pre-preparing" content for subsequent Steps is FORBIDDEN (e.g., writing SVG code during the Strategist phase)
-> 6. **NO SUB-AGENT SVG GENERATION** — Draft SVG generation in Step 6 is context-dependent and MUST be completed by the current main agent end-to-end. Delegating page SVG generation to sub-agents is FORBIDDEN
-> 7. **SEQUENTIAL PAGE GENERATION ONLY** — In Step 6, after the global design context is confirmed, SVG pages MUST be generated sequentially page by page in one continuous pass. Grouped page batches (for example, 5 pages at a time) are FORBIDDEN
+> 6. **NO SUB-AGENT SVG OR FINAL-HTML SLIDE GENERATION** — Draft SVG generation in Step 6 and final HTML slide authoring in Step 8 are context-dependent and MUST be completed by the current main agent end-to-end. Delegating page generation to sub-agents is FORBIDDEN
+> 7. **SEQUENTIAL PAGE GENERATION ONLY** — In Step 6 and final HTML authoring in Step 8, after the global design context is confirmed, generate pages sequentially in one continuous pass. Grouped page batches (for example, 5 pages at a time) are FORBIDDEN
 > 8. **SKELETON-FIRST BY DEFAULT** — Unless the user explicitly asks for direct export from `ppt-master`, the default deliverable is a reviewable skeleton package (`main_content.md`, `design_spec.md`, `style_sheet.md`, `asset_manifest.md`, `notes/`, `preview/index.html`) rather than the final polished `.pptx`
 
 > [!IMPORTANT]
@@ -77,12 +76,17 @@ description: Use when explicitly asked to run ppt-master for a presentation outl
 > Every `ppt-master` run should be treated as one of the following delivery modes:
 >
 > 1. **Review Skeleton** — default mode; output the reviewable package only
-> 2. **Native Editable Handoff** — when the user wants a final `.pptx` and editability matters
-> 3. **Legacy Direct Export** — compatibility path; explicit request only
+> 2. **Single-file HTML Presentation** — when the user wants a final offline `.html` presentation
+> 3. **Native Editable Handoff** — when the user wants a final `.pptx` and editability matters
+> 4. **Legacy Direct Export** — compatibility path; explicit request only
 >
 > Rules:
 >
+> - If the user asks for a **final offline HTML**, **standalone HTML presentation**, **single-file HTML**, or equivalent, select **Single-file HTML Presentation**.
 > - If the user asks for a **final PPT**, **editable PPT**, **可编辑**, **老板后续要改**, or equivalent, default to **Native Editable Handoff**.
+> - Record the selected final target in `design_spec.md` before final production: only one final target is selected. Do not produce HTML and PPTX simultaneously by default.
+> - `preview/index.html` is not the final HTML. It is the review-only skeleton preview.
+> - For **Single-file HTML Presentation**, read `references/html-presentation.md` before authoring `html_output/` and package only with `scripts/build_single_html.py`.
 > - In **Native Editable Handoff**, `ppt-master` owns structure, content outline, style direction, review loop, handoff files, and the final native rebuild. The final native `.pptx` MUST follow `${SKILL_DIR}/references/native-editable.md` and use native PowerPoint text boxes, shapes, tables, and media placement.
 > - `preview/index.html`, `svg_output/`, and `svg_final/` are **review and execution artifacts**, not proof that direct `svg_to_pptx.py` export will be both faithful and editable.
 > - **Cross-engine text-layout rule**: Browser SVG preview and native PowerPoint text layout use different font metrics and wrapping behavior. A page that looks correct in `preview/index.html` can still wrap, overlap, or orphan punctuation in the final native `.pptx`.
@@ -109,6 +113,7 @@ description: Use when explicitly asked to run ppt-master for a presentation outl
 | `${SKILL_DIR}/scripts/image_gen.py` | Local fallback AI image generation CLI (prefer Codex `image_gen` tool in Codex sessions) |
 | `${SKILL_DIR}/scripts/generate_skeleton_docs.py` | Generate standard `main_content.md`, `style_sheet.md`, and `asset_manifest.md` |
 | `${SKILL_DIR}/scripts/build_preview_html.py` | Build lightweight HTML review draft from `svg_output/` or `svg_final/` |
+| `${SKILL_DIR}/scripts/build_single_html.py` | Package `html_output/` as a final offline single-file HTML presentation |
 | `${SKILL_DIR}/scripts/svg_quality_checker.py` | SVG quality check |
 | `${SKILL_DIR}/scripts/total_md_split.py` | Speaker notes splitting |
 | `${SKILL_DIR}/scripts/finalize_svg.py` | SVG post-processing (unified entry) |
@@ -385,14 +390,35 @@ During this loop:
 ## ✅ Human Review Loop Complete
 - [x] Skeleton confirmed by user
 - [x] `main_content.md` and handoff files updated to match the confirmed structure
-- [ ] **Next**: Read `references/native-editable.md` and continue to final editable production
+- [x] Selected final target recorded in `design_spec.md`
+- [ ] **Next**: Enter the Step 8 final-production router
 ```
 
 ---
 
-### Step 8: Native Editable Rebuild
+### Step 8: Final Production Router
 
-🚧 **GATE**: Step 7 complete; the human has confirmed the skeleton, and handoff files are up to date.
+🚧 **GATE**: Step 7 complete; the human has confirmed the skeleton, handoff files are up to date, and `design_spec.md` records one selected final target.
+
+Do not create multiple final formats by default. Route only to the selected target:
+
+#### Single-file HTML Presentation
+
+Before authoring final HTML sources, read:
+
+```text
+${SKILL_DIR}/references/html-presentation.md
+```
+
+Author `html_output/` sequentially with the current main agent, then package and offline-QA:
+
+```bash
+python3 ${SKILL_DIR}/scripts/build_single_html.py <project_path>
+```
+
+Deliver `<project_path>/exports/<project_name>.single.html`. `preview/index.html` is not the final HTML.
+
+#### Native Editable Handoff
 
 Before producing the final editable deck, read the internal native rebuild reference:
 
@@ -487,6 +513,7 @@ Before switching roles, you **MUST first read** the corresponding reference file
 | Canvas format specification | `references/canvas-formats.md` |
 | Image layout specification | `references/image-layout-spec.md` |
 | SVG image embedding | `references/svg-image-embedding.md` |
+| Single-file HTML Presentation | `references/html-presentation.md` |
 | Native editable rebuild | `references/native-editable.md` |
 
 ---

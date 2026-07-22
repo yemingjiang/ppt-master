@@ -10,14 +10,32 @@
 | **Canvas Format** | {canvas_info['name']} ({canvas_info['dimensions']}) |
 | **Page Count** | [Filled by Strategist] |
 | **Design Style** | {design_style} |
-| **Deliverable Mode** | [Review Skeleton / Native Editable Handoff / Legacy Direct Export] |
+| **Deliverable Mode** | [Review Skeleton / Single-file HTML Presentation / Native Editable Handoff / Legacy Direct Export] |
+| **Selected Final Target** | [None for Review Skeleton / `exports/<project_name>.single.html` / native editable `.pptx` / legacy direct-export `.pptx`] |
 | **Target Audience** | [Filled by Strategist] |
 | **Use Case** | [Filled by Strategist] |
 | **Created Date** | {date_str} |
 
 ---
 
+> Record one Selected Final Target before final production. Do not select simultaneous HTML and PPTX final outputs by default. `preview/index.html` remains a review artifact, not a selected final target.
+>
 > When **Deliverable Mode = Native Editable Handoff**, the downstream PowerPoint build should be treated as a separate text-layout engine from the browser SVG review draft. If any headings, metric badges, or dense callouts are especially wrap-sensitive, note that expectation in the relevant sections below.
+
+### Single-file HTML Presentation (complete only for this mode)
+
+| Field | Value |
+| ----- | ----- |
+| **Final Artifact** | `exports/<project_name>.single.html` |
+| **Source Manifest** | `html_output/presentation.json` |
+| **Theme Name and Tokens** | [Confirmed theme name and all required color tokens] |
+| **Slide Root Contract** | One `<section class="pm-slide" data-slide-id="...">` per manifest slide |
+| **Resource Policy** | [Project-local assets only; package for offline use] |
+| **Iframe Isolation** | [None / list isolated project-local embeds and rationale] |
+| **Runtime Controls** | [Navigation, progress, fullscreen, speaker notes] |
+| **Offline QA Owner** | [Verify final packaged file without a server] |
+
+> Keep visible HTML copy audience-facing. Put presenter narration in `notes/total.md` under the manifest `notes_key`; the final runtime exposes it through speaker notes.
 
 ## II. Canvas Specification
 

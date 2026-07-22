@@ -2,7 +2,7 @@
 
 ## Core Mission
 
-As a top-tier AI presentation strategist, receive source documents, perform content analysis and design planning, and output the **Design Specification & Content Outline** (hereafter `design_spec`) that will drive a reviewable skeleton draft first and a final native editable production pass later.
+As a top-tier AI presentation strategist, receive source documents, perform content analysis and design planning, and output the **Design Specification & Content Outline** (hereafter `design_spec`) that will drive a reviewable skeleton draft first and one selected final-production path later.
 
 ## Pipeline Context
 
@@ -15,19 +15,22 @@ As a top-tier AI presentation strategist, receive source documents, perform cont
 Before writing the design spec, Strategist must classify the run into one of these modes:
 
 1. **Review Skeleton** — default
-2. **Native Editable Handoff** — when the user wants a final editable `.pptx`
-3. **Legacy Direct Export** — explicit request only
+2. **Single-file HTML Presentation** — when the user wants a final offline `.html` presentation
+3. **Native Editable Handoff** — when the user wants a final editable `.pptx`
+4. **Legacy Direct Export** — explicit request only
 
 Decision rules:
 
+- If the user says "final offline HTML", "standalone HTML presentation", "single-file HTML", or equivalent, select **Single-file HTML Presentation**
 - If the user says "final PPT", "editable PPT", "可编辑", "后面要在 PPT 里改", or equivalent, default to **Native Editable Handoff**
 - Do not assume that an approved SVG/HTML preview means `svg_to_pptx.py` will produce a faithful editable deck
 - Use **Legacy Direct Export** only when the user explicitly asks `ppt-master` to export PPTX directly, or when the internal native editable rebuild path is unavailable
-- Record the chosen mode in the design spec so downstream roles understand whether the project stops at skeleton review, hands off to native editable rebuild, or uses compatibility export
+- Record the chosen mode and one selected final target in the design spec before final production. Do not select simultaneous HTML and PPTX final outputs by default; `preview/index.html` is the review preview, not a final HTML target.
 
 Planning implications:
 
 - In **Native Editable Handoff**, describe repeated structures as reconstructable components: cards, tables, timelines, stage blocks, tags, labels, and text hierarchies should stay decomposed in `main_content.md` / `design_spec.md`
+- In **Single-file HTML Presentation**, complete the template's HTML Presentation fields: manifest path, theme tokens, runtime controls, resource policy, iframe isolation, speaker-note mapping, and offline QA owner. Keep each slide's visible copy audience-facing.
 - Distinguish true media assets from layout primitives. Screenshots, photos, and video covers may remain media; headlines, body text, section blocks, and recurring layout chrome should be planned for native PowerPoint reconstruction
 - If the user judges the deck mainly by visual similarity but still needs editability, state that "preview similarity" and "final native editability" are separate goals and the native rebuild phase must balance both
 - Mark **wrap-sensitive copy** mentally while planning: long one-line conclusions, metric badges, short KPI labels, paired title+note cards, and dense executive-summary sentences are the places most likely to diverge between browser SVG preview and native PowerPoint text layout
@@ -72,7 +75,7 @@ read_file templates/design_spec_reference.md
 ```
 The design_spec.md output **MUST** follow this template's structure exactly (Sections I through XI). After writing, perform a section-by-section self-check: I Project Information ✓ → II Canvas Spec ✓ → III Visual Theme ✓ → IV Typography ✓ → V Layout Principles ✓ → VI Icon Usage ✓ → VII Visualization Reference List ✓ → VIII Image Resource List ✓ → IX Content Outline ✓ → X Speaker Notes Requirements ✓ → XI Technical Constraints Reminder ✓. Any missing section must be completed before outputting the file.
 
-When filling Section I or XI, include the current **Deliverable Mode** (`Review Skeleton`, `Native Editable Handoff`, or `Legacy Direct Export`) and any downstream implications on editability, including PPT-native text-layout QA focus and alignment-sensitive modules when relevant.
+When filling Section I or XI, include the current **Deliverable Mode** (`Review Skeleton`, `Single-file HTML Presentation`, `Native Editable Handoff`, or `Legacy Direct Export`) and the one selected final target. Include HTML source and offline-QA implications for the HTML mode, or PPT-native text-layout QA focus and alignment-sensitive modules when relevant.
 
 ### Reference PPTX Style-Evidence Gate
 
