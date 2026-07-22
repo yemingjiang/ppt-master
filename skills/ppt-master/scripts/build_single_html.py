@@ -47,7 +47,7 @@ _CSS_IMPORT_PATTERN = re.compile(
     r"""@import\s+(?:
         url\(\s*(?P<url_quote>['\"]?)(?P<url_reference>.*?)(?P=url_quote)\s*\)
         |(?P<string_quote>['\"])(?P<string_reference>.*?)(?P=string_quote)
-    )\s*[^;]*;""",
+    )\s*(?P<media>[^;]*);""",
     re.IGNORECASE | re.VERBOSE,
 )
 
@@ -151,33 +151,28 @@ class OfflineResourcePackager:
     def _split_srcset(srcset: str) -> list[str]:
         """Split generated srcset candidates without breaking data URI commas."""
         candidates: list[str] = []
-        current: list[str] = []
-        data_payload_started = False
+        position = 0
+        while position < len(srcset):
+            while position < len(srcset) and srcset[position].isspace():
+                position += 1
+            candidate_start = position
+            is_data_uri = srcset[position : position + 5].lower() == "data:"
 
-        for index, character in enumerate(srcset):
-            if character != ",":
-                current.append(character)
-                continue
-
-            candidate = "".join(current).lstrip()
-            if candidate.lower().startswith("data:") and not data_payload_started:
-                data_payload_started = True
-                current.append(character)
-                continue
-            if candidate.lower().startswith("data:") and (
-                index + 1 < len(srcset) and not srcset[index + 1].isspace()
+            while position < len(srcset) and not srcset[position].isspace() and (
+                is_data_uri or srcset[position] != ","
             ):
-                current.append(character)
-                continue
+                position += 1
 
+            while position < len(srcset) and srcset[position].isspace():
+                position += 1
+            while position < len(srcset) and srcset[position] != ",":
+                position += 1
+
+            candidate = srcset[candidate_start:position].strip()
             if candidate:
                 candidates.append(candidate)
-            current = []
-            data_payload_started = False
-
-        candidate = "".join(current).strip()
-        if candidate:
-            candidates.append(candidate)
+            if position < len(srcset):
+                position += 1
         return candidates
 
     def _inline_css_import(
@@ -195,7 +190,11 @@ class OfflineResourcePackager:
             css_text = stylesheet_path.read_text(encoding="utf-8")
         except OSError as error:
             raise PackagingError(f"unable to read stylesheet: {stylesheet_path}") from error
-        return self._rewrite_css(css_text, stylesheet_path, (*css_stack, stylesheet_path))
+        inlined_css = self._rewrite_css(css_text, stylesheet_path, (*css_stack, stylesheet_path))
+        media = match.group("media").strip()
+        if media:
+            return f"@media {media} {{\n{inlined_css}\n}}"
+        return inlined_css
 
     def _rewrite_stylesheets(
         self, soup: BeautifulSoup, source_path: Path, iframe_stack: tuple[Path, ...]

@@ -237,6 +237,18 @@ class OfflineResourcePackagerTests(ProjectFixture):
         self.assertIn(f"{self.data_uri('image/png', self.chart)} 2x", rewritten)
         self.assertNotIn("../../images/chart.png", rewritten)
 
+    def test_embeds_no_whitespace_srcset_candidate_after_data_uri_descriptor(self) -> None:
+        existing = "data:image/png;base64,AAA"
+        packager = OfflineResourcePackager(self.project)
+
+        rewritten = packager.rewrite_html(
+            f'<img srcset="{existing} 1x,../../images/chart.png 2x">', self.slide_path
+        )
+
+        self.assertIn(f"{existing} 1x", rewritten)
+        self.assertIn(f"{self.data_uri('image/png', self.chart)} 2x", rewritten)
+        self.assertNotIn("../../images/chart.png", rewritten)
+
     def test_recursively_inlines_local_css_imports_and_assets(self) -> None:
         styles = self.project / "styles"
         styles.mkdir()
@@ -257,6 +269,21 @@ class OfflineResourcePackagerTests(ProjectFixture):
         self.assertNotIn("also.css", rewritten)
         self.assertNotIn("../images/chart.png", rewritten)
         self.assertEqual(rewritten.count(self.data_uri("image/png", self.chart)), 2)
+
+    def test_wraps_inlined_css_import_with_its_media_condition(self) -> None:
+        styles = self.project / "styles"
+        styles.mkdir()
+        root_css = styles / "root.css"
+        root_css.write_text('@import "print.css" print;', encoding="utf-8")
+        (styles / "print.css").write_text(".print-only { display: block; }", encoding="utf-8")
+        packager = OfflineResourcePackager(self.project)
+
+        rewritten = packager.rewrite_css(root_css.read_text(encoding="utf-8"), root_css)
+
+        self.assertTrue(rewritten.startswith("@media print {"))
+        self.assertTrue(rewritten.endswith("}"))
+        self.assertIn(".print-only { display: block; }", rewritten)
+        self.assertNotIn("@import", rewritten)
 
     def test_rejects_css_import_cycles_with_ordered_paths(self) -> None:
         styles = self.project / "styles"
