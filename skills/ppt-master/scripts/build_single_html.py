@@ -43,6 +43,13 @@ _EXPLICIT_MEDIA_TYPES = {
 _CSS_URL_PATTERN = re.compile(
     r"url\(\s*(?P<quote>['\"]?)(?P<reference>.*?)(?P=quote)\s*\)", re.IGNORECASE
 )
+_CSS_IMPORT_PATTERN = re.compile(
+    r"""@import\s+(?:
+        url\(\s*(?P<url_quote>['\"]?)(?P<url_reference>.*?)(?P=url_quote)\s*\)
+        |(?P<string_quote>['\"])(?P<string_reference>.*?)(?P=string_quote)
+    )\s*[^;]*;""",
+    re.IGNORECASE | re.VERBOSE,
+)
 
 
 class OfflineResourcePackager:
@@ -89,6 +96,16 @@ class OfflineResourcePackager:
 
     def rewrite_css(self, css_text: str, source_path: Path) -> str:
         """Embed local CSS ``url(...)`` references relative to ``source_path``."""
+        source_path = source_path.resolve()
+        return self._rewrite_css(css_text, source_path, (source_path,))
+
+    def _rewrite_css(
+        self, css_text: str, source_path: Path, css_stack: tuple[Path, ...]
+    ) -> str:
+        css_text = _CSS_IMPORT_PATTERN.sub(
+            lambda match: self._inline_css_import(match, source_path, css_stack), css_text
+        )
+
         def replace(match: re.Match[str]) -> str:
             reference = match.group("reference").strip()
             rewritten = self._rewrite_reference(reference, source_path)
@@ -121,17 +138,64 @@ class OfflineResourcePackager:
         return self.to_data_uri(path)
 
     def _rewrite_srcset(self, srcset: str, source_path: Path) -> str:
-        if srcset.lstrip().lower().startswith("data:"):
-            return srcset
-
         candidates = []
-        for candidate in srcset.split(","):
+        for candidate in self._split_srcset(srcset):
             parts = candidate.strip().split(maxsplit=1)
             if not parts:
                 continue
             rewritten = self._rewrite_reference(parts[0], source_path)
             candidates.append(" ".join((rewritten, *parts[1:])))
         return ", ".join(candidates)
+
+    @staticmethod
+    def _split_srcset(srcset: str) -> list[str]:
+        """Split generated srcset candidates without breaking data URI commas."""
+        candidates: list[str] = []
+        current: list[str] = []
+        data_payload_started = False
+
+        for index, character in enumerate(srcset):
+            if character != ",":
+                current.append(character)
+                continue
+
+            candidate = "".join(current).lstrip()
+            if candidate.lower().startswith("data:") and not data_payload_started:
+                data_payload_started = True
+                current.append(character)
+                continue
+            if candidate.lower().startswith("data:") and (
+                index + 1 < len(srcset) and not srcset[index + 1].isspace()
+            ):
+                current.append(character)
+                continue
+
+            if candidate:
+                candidates.append(candidate)
+            current = []
+            data_payload_started = False
+
+        candidate = "".join(current).strip()
+        if candidate:
+            candidates.append(candidate)
+        return candidates
+
+    def _inline_css_import(
+        self, match: re.Match[str], source_path: Path, css_stack: tuple[Path, ...]
+    ) -> str:
+        reference = match.group("url_reference") or match.group("string_reference")
+        if self._is_preserved_reference(reference):
+            return match.group(0)
+        stylesheet_path = self._resolve_resource(reference, source_path)
+        if stylesheet_path in css_stack:
+            cycle = (*css_stack, stylesheet_path)
+            chain = " -> ".join(str(path) for path in cycle)
+            raise PackagingError(f"CSS @import cycle detected: {chain}")
+        try:
+            css_text = stylesheet_path.read_text(encoding="utf-8")
+        except OSError as error:
+            raise PackagingError(f"unable to read stylesheet: {stylesheet_path}") from error
+        return self._rewrite_css(css_text, stylesheet_path, (*css_stack, stylesheet_path))
 
     def _rewrite_stylesheets(
         self, soup: BeautifulSoup, source_path: Path, iframe_stack: tuple[Path, ...]

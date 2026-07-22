@@ -224,6 +224,65 @@ class OfflineResourcePackagerTests(ProjectFixture):
         self.assertIn("url(#gradient)", rewritten)
         self.assertEqual(packager.embedded_count, 0)
 
+    def test_embeds_local_candidate_in_mixed_data_uri_srcset(self) -> None:
+        existing = "data:image/svg+xml,%3Csvg%3E"
+        packager = OfflineResourcePackager(self.project)
+
+        rewritten = packager.rewrite_html(
+            f'<img srcset="{existing} 1x, ../../images/chart.png 2x">', self.slide_path
+        )
+
+        self.assertIn(existing, rewritten)
+        self.assertIn(f"{existing} 1x", rewritten)
+        self.assertIn(f"{self.data_uri('image/png', self.chart)} 2x", rewritten)
+        self.assertNotIn("../../images/chart.png", rewritten)
+
+    def test_recursively_inlines_local_css_imports_and_assets(self) -> None:
+        styles = self.project / "styles"
+        styles.mkdir()
+        root_css = styles / "root.css"
+        root_css.write_text('@import "nested.css"; @import url("also.css");', encoding="utf-8")
+        (styles / "nested.css").write_text(
+            '.nested { background: url("../images/chart.png"); }', encoding="utf-8"
+        )
+        (styles / "also.css").write_text(
+            '.also { background: url("../images/chart.png"); }', encoding="utf-8"
+        )
+        packager = OfflineResourcePackager(self.project)
+
+        rewritten = packager.rewrite_css(root_css.read_text(encoding="utf-8"), root_css)
+
+        self.assertNotIn("@import", rewritten)
+        self.assertNotIn("nested.css", rewritten)
+        self.assertNotIn("also.css", rewritten)
+        self.assertNotIn("../images/chart.png", rewritten)
+        self.assertEqual(rewritten.count(self.data_uri("image/png", self.chart)), 2)
+
+    def test_rejects_css_import_cycles_with_ordered_paths(self) -> None:
+        styles = self.project / "styles"
+        styles.mkdir()
+        root_css = styles / "a.css"
+        root_css.write_text('@import "b.css";', encoding="utf-8")
+        (styles / "b.css").write_text('@import url("a.css");', encoding="utf-8")
+        packager = OfflineResourcePackager(self.project)
+
+        with self.assertRaisesRegex(PackagingError, r"a\.css.*b\.css.*a\.css"):
+            packager.rewrite_css(root_css.read_text(encoding="utf-8"), root_css)
+
+    def test_rejects_remote_runtime_resources_and_css_imports(self) -> None:
+        packager = OfflineResourcePackager(self.project)
+
+        with self.assertRaisesRegex(PackagingError, "remote runtime"):
+            packager.rewrite_html('<img src="https://example.test/chart.png">', self.slide_path)
+        with self.assertRaisesRegex(PackagingError, "remote runtime"):
+            packager.rewrite_css('@import url("https://example.test/theme.css");', self.slide_path)
+
+    def test_rejects_project_escaping_resource_urls(self) -> None:
+        packager = OfflineResourcePackager(self.project)
+
+        with self.assertRaisesRegex(PackagingError, "stay inside the project"):
+            packager.rewrite_html('<img src="../../../outside.png">', self.slide_path)
+
     def test_inlines_nested_iframe_documents_and_dependencies(self) -> None:
         interactive = self.project / "interactive"
         interactive.mkdir()
