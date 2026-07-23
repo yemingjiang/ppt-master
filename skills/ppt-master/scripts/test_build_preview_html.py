@@ -104,11 +104,14 @@ class BuildPreviewHtmlTests(unittest.TestCase):
         self.assertNotIn('class="toolbar"', html)
         self.assertNotIn('id="slideToolbarTitle"', html)
         self.assertNotIn("toolbarTitle", html)
-        self.assertNotIn("推荐审稿范围：结构、结论、素材、备注。", html)
+        scope_sentence = "推荐审稿范围：结构、结论、素材、备注。"
+        markup, script = html.split("<script>", 1)
+        self.assertNotIn(scope_sentence, markup)
+        self.assertIn(f'"scope": "{scope_sentence}"', script)
         self.assertIn("justify-content: flex-end;", html)
         self.assertIn("document.getElementById('prevBtn').addEventListener('click', () => selectSlide(current - 1));", html)
         self.assertIn("document.getElementById('nextBtn').addEventListener('click', () => selectSlide(current + 1));", html)
-        script = html.split("<script>", 1)[1].split("</script>", 1)[0]
+        script = script.split("</script>", 1)[0]
         result = subprocess.run(
             ["node", "-e", "const vm=require('vm'); new vm.Script(process.argv[1]);", script],
             capture_output=True,

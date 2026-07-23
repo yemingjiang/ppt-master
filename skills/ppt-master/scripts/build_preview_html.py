@@ -176,7 +176,7 @@ def build_html(
             f"</button>"
         )
     entries_json = safe_json(entries)
-    strings_json = safe_json({key: value for key, value in strings.items() if key != "scope"})
+    strings_json = safe_json(strings)
     first_src = html.escape(entries[0]["href"]) if entries else ""
     first_title = html.escape(entries[0]["title"]) if entries else "No slides"
 
