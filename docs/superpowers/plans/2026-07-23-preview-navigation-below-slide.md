@@ -1,5 +1,7 @@
 # Preview Navigation Below Slide Implementation Plan
 
+> **Superseded on 2026-07-23.** The final implementation places Previous/Next on the right side of the top current-slide takeaway card. Do not execute this historical below-slide plan.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Remove the review preview's top toolbar and place the Previous/Next controls immediately below the current slide.

@@ -6,6 +6,8 @@ import subprocess
 import sys
 import unittest
 
+from bs4 import BeautifulSoup
+
 
 SCRIPT_DIR = Path(__file__).resolve().parent
 if str(SCRIPT_DIR) not in sys.path:
@@ -98,9 +100,10 @@ class BuildPreviewHtmlTests(unittest.TestCase):
         next_index = html.index('id="nextBtn"')
 
         self.assertLess(summary_index, viewer_index)
-        self.assertLess(viewer_index, navigation_index)
+        self.assertLess(summary_index, navigation_index)
         self.assertLess(navigation_index, prev_index)
         self.assertLess(prev_index, next_index)
+        self.assertLess(next_index, viewer_index)
         self.assertNotIn('class="toolbar"', html)
         self.assertNotIn('id="slideToolbarTitle"', html)
         self.assertNotIn("toolbarTitle", html)
@@ -108,6 +111,19 @@ class BuildPreviewHtmlTests(unittest.TestCase):
         markup, script = html.split("<script>", 1)
         self.assertNotIn(scope_sentence, markup)
         self.assertIn(f'"scope": "{scope_sentence}"', script)
+        soup = BeautifulSoup(markup, "html.parser")
+        main = soup.select_one("main.main")
+        self.assertIsNotNone(main)
+        self.assertEqual(
+            [" ".join(node.get("class", [])) for node in main.find_all(recursive=False)],
+            ["summary-card", "viewer-shell"],
+        )
+        summary = main.select_one("section.summary-card")
+        self.assertIsNotNone(summary)
+        self.assertEqual(
+            [" ".join(node.get("class", [])) for node in summary.find_all(recursive=False)],
+            ["summary-content", "slide-navigation"],
+        )
         self.assertIn("justify-content: flex-end;", html)
         self.assertIn("document.getElementById('prevBtn').addEventListener('click', () => selectSlide(current - 1));", html)
         self.assertIn("document.getElementById('nextBtn').addEventListener('click', () => selectSlide(current + 1));", html)

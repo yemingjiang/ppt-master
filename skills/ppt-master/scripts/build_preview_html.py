@@ -331,7 +331,7 @@ def build_html(
     .main {{
       padding: 24px;
       display: grid;
-      grid-template-rows: auto 1fr auto;
+      grid-template-rows: auto 1fr;
       gap: 16px;
       min-width: 0;
     }}
@@ -345,6 +345,7 @@ def build_html(
       display: flex;
       justify-content: flex-end;
       gap: 8px;
+      align-self: center;
     }}
     .nav-button, .small-button {{
       border: 1px solid var(--line);
@@ -358,6 +359,13 @@ def build_html(
     }}
     .summary-card {{
       padding: 18px 20px;
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      align-items: center;
+      gap: 16px;
+    }}
+    .summary-content {{
+      min-width: 0;
     }}
     .summary-label {{
       display: inline-block;
@@ -520,17 +528,19 @@ def build_html(
     </aside>
     <main class="main">
       <section class="summary-card">
-        <div class="summary-label">{html.escape(strings["takeaway"])}</div>
-        <h2 class="summary-title" id="summaryTitle">{first_title}</h2>
-        <p class="summary-takeaway" id="summaryTakeaway"></p>
+        <div class="summary-content">
+          <div class="summary-label">{html.escape(strings["takeaway"])}</div>
+          <h2 class="summary-title" id="summaryTitle">{first_title}</h2>
+          <p class="summary-takeaway" id="summaryTakeaway"></p>
+        </div>
+        <nav class="slide-navigation" aria-label="Slide navigation">
+          <button class="nav-button" id="prevBtn">{html.escape(strings["prev"])}</button>
+          <button class="nav-button" id="nextBtn">{html.escape(strings["next"])}</button>
+        </nav>
       </section>
       <div class="viewer-shell">
         <iframe id="viewer" title="Draft slide preview" src="{first_src}"></iframe>
       </div>
-      <nav class="slide-navigation" aria-label="Slide navigation">
-        <button class="nav-button" id="prevBtn">{html.escape(strings["prev"])}</button>
-        <button class="nav-button" id="nextBtn">{html.escape(strings["next"])}</button>
-      </nav>
     </main>
     <aside class="inspector">
       <section class="panel">
