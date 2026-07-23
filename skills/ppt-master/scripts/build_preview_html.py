@@ -176,7 +176,7 @@ def build_html(
             f"</button>"
         )
     entries_json = safe_json(entries)
-    strings_json = safe_json(strings)
+    strings_json = safe_json({key: value for key, value in strings.items() if key != "scope"})
     first_src = html.escape(entries[0]["href"]) if entries else ""
     first_title = html.escape(entries[0]["title"]) if entries else "No slides"
 
@@ -331,36 +331,19 @@ def build_html(
     .main {{
       padding: 24px;
       display: grid;
-      grid-template-rows: auto auto 1fr;
+      grid-template-rows: auto 1fr auto;
       gap: 16px;
       min-width: 0;
     }}
-    .toolbar, .summary-card, .panel {{
+    .summary-card, .panel {{
       background: var(--panel);
       border: 1px solid var(--line);
       border-radius: 18px;
       box-shadow: var(--shadow);
     }}
-    .toolbar {{
+    .slide-navigation {{
       display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 12px;
-      padding: 14px 18px;
-    }}
-    .toolbar-title {{
-      font-size: 18px;
-      font-weight: 700;
-      line-height: 1.3;
-      margin: 0 0 4px;
-    }}
-    .toolbar-note {{
-      font-size: 13px;
-      color: var(--muted);
-      line-height: 1.5;
-    }}
-    .nav-buttons {{
-      display: flex;
+      justify-content: flex-end;
       gap: 8px;
     }}
     .nav-button, .small-button {{
@@ -518,10 +501,6 @@ def build_html(
         scrollbar-gutter: auto;
         padding-right: 0;
       }}
-      .toolbar {{
-        flex-direction: column;
-        align-items: stretch;
-      }}
     }}
   </style>
 </head>
@@ -540,16 +519,6 @@ def build_html(
       </div>
     </aside>
     <main class="main">
-      <div class="toolbar">
-        <div>
-          <div class="toolbar-title" id="slideToolbarTitle">{first_title}</div>
-          <div class="toolbar-note">{html.escape(strings["scope"])}</div>
-        </div>
-        <div class="nav-buttons">
-          <button class="nav-button" id="prevBtn">{html.escape(strings["prev"])}</button>
-          <button class="nav-button" id="nextBtn">{html.escape(strings["next"])}</button>
-        </div>
-      </div>
       <section class="summary-card">
         <div class="summary-label">{html.escape(strings["takeaway"])}</div>
         <h2 class="summary-title" id="summaryTitle">{first_title}</h2>
@@ -558,6 +527,10 @@ def build_html(
       <div class="viewer-shell">
         <iframe id="viewer" title="Draft slide preview" src="{first_src}"></iframe>
       </div>
+      <nav class="slide-navigation" aria-label="Slide navigation">
+        <button class="nav-button" id="prevBtn">{html.escape(strings["prev"])}</button>
+        <button class="nav-button" id="nextBtn">{html.escape(strings["next"])}</button>
+      </nav>
     </main>
     <aside class="inspector">
       <section class="panel">
@@ -588,7 +561,6 @@ def build_html(
     const storagePrefix = `ppt-master-preview-comments::${{projectKey}}::`;
     const storageKey = `${{storagePrefix}}${{reviewBuildId}}`;
     const viewer = document.getElementById('viewer');
-    const toolbarTitle = document.getElementById('slideToolbarTitle');
     const summaryTitle = document.getElementById('summaryTitle');
     const summaryTakeaway = document.getElementById('summaryTakeaway');
     const notesScript = document.getElementById('notesScript');
@@ -789,7 +761,6 @@ def build_html(
       syncOutlineToCurrentSlide();
       const entry = entries[current];
       viewer.src = entry.href;
-      toolbarTitle.textContent = entry.title;
       summaryTitle.textContent = entry.title;
       summaryTakeaway.textContent = entry.takeaway || strings.no_takeaway;
       renderNotes(entry);

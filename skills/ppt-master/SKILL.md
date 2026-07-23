@@ -353,6 +353,7 @@ Read references/executor-consultant-top.md # Top consulting style (MBB level)
   - Recommended command: `python3 ${SKILL_DIR}/scripts/build_preview_html.py <project_path> --source output`
   - `preview/index.html` is the default review entry. In Codex desktop, return its absolute file link in the response.
   - Static `file://` preview is the default review flow. It saves comments locally in the browser and should expose "复制全部批注" so the user can paste the review back to Codex without any web server.
+  - In `preview/index.html`, render the Previous/Next navigation row immediately below the current slide viewer. Do not render a top toolbar containing the current-slide title or review-scope guidance. Keep the controls outside the iframe and never overlay them on slide content.
   - On desktop and tablet layouts, the left outline list must scroll independently while its header remains visible. Whenever the active slide changes through outline clicks, navigation buttons, keyboard navigation, or the initial URL hash, the active outline item must automatically move into the outline viewport without scrolling the main document.
   - After Codex applies pasted review comments and rebuilds `preview/index.html`, treat the new file as a fresh review round. Old local comments should not be carried into the new build.
 - Only generate `preview/draft.pdf` when the user explicitly asks for PDF review
@@ -533,6 +534,7 @@ Before switching roles, you **MUST first read** the corresponding reference file
 
 - Default draft review surface: `python3 ${SKILL_DIR}/scripts/build_preview_html.py <project_path> --source output`; its desktop/tablet outline is independently scrollable and automatically follows the active slide
 - `preview/index.html` opened via `file://` is the default review path; keep comments in the browser, use copy-all, then paste the review back to Codex
+- In `preview/index.html`, render the Previous/Next navigation row immediately below the current slide viewer. Do not render a top toolbar containing the current-slide title or review-scope guidance. Keep the controls outside the iframe and never overlay them on slide content.
 - Standard handoff docs: `python3 ${SKILL_DIR}/scripts/generate_skeleton_docs.py <project_path> --overwrite`
 - Legacy direct export remains available, but it is no longer the default completion path
 - **Troubleshooting**: If the user encounters issues during generation (layout overflow, export errors, blank images, etc.), recommend checking `scripts/docs/troubleshooting.md` — it covers validation failures, preview/notes-split problems, and final-deck quality issues

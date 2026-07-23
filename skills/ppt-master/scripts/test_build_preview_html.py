@@ -41,7 +41,7 @@ class BuildPreviewHtmlTests(unittest.TestCase):
                 "keyboard": "支持左右键",
                 "prev": "上一页",
                 "next": "下一页",
-                "scope": "",
+                "scope": "推荐审稿范围：结构、结论、素材、备注。",
                 "takeaway": "本页 takeaway",
                 "notes": "Notes 面板",
                 "key_points": "Key Points",
@@ -91,6 +91,23 @@ class BuildPreviewHtmlTests(unittest.TestCase):
         self.assertIn("function syncOutlineToCurrentSlide()", html)
         self.assertIn("outline.scrollTop = targetScrollTop;", html)
         self.assertIn("syncOutlineToCurrentSlide();", html)
+        summary_index = html.index('<section class="summary-card">')
+        viewer_index = html.index('<div class="viewer-shell">')
+        navigation_index = html.index('<nav class="slide-navigation"')
+        prev_index = html.index('id="prevBtn"')
+        next_index = html.index('id="nextBtn"')
+
+        self.assertLess(summary_index, viewer_index)
+        self.assertLess(viewer_index, navigation_index)
+        self.assertLess(navigation_index, prev_index)
+        self.assertLess(prev_index, next_index)
+        self.assertNotIn('class="toolbar"', html)
+        self.assertNotIn('id="slideToolbarTitle"', html)
+        self.assertNotIn("toolbarTitle", html)
+        self.assertNotIn("推荐审稿范围：结构、结论、素材、备注。", html)
+        self.assertIn("justify-content: flex-end;", html)
+        self.assertIn("document.getElementById('prevBtn').addEventListener('click', () => selectSlide(current - 1));", html)
+        self.assertIn("document.getElementById('nextBtn').addEventListener('click', () => selectSlide(current + 1));", html)
         script = html.split("<script>", 1)[1].split("</script>", 1)[0]
         result = subprocess.run(
             ["node", "-e", "const vm=require('vm'); new vm.Script(process.argv[1]);", script],
