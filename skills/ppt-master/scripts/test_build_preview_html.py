@@ -85,6 +85,12 @@ class BuildPreviewHtmlTests(unittest.TestCase):
         self.assertNotIn("URL.createObjectURL", html)
         self.assertNotIn("link.click()", html)
         self.assertNotIn("review_server.py", html)
+        self.assertIn("overflow-y: auto;", html)
+        self.assertIn("overscroll-behavior: contain;", html)
+        self.assertIn("const outline = document.querySelector('.nav');", html)
+        self.assertIn("function syncOutlineToCurrentSlide()", html)
+        self.assertIn("outline.scrollTop = targetScrollTop;", html)
+        self.assertIn("syncOutlineToCurrentSlide();", html)
         script = html.split("<script>", 1)[1].split("</script>", 1)[0]
         result = subprocess.run(
             ["node", "-e", "const vm=require('vm'); new vm.Script(process.argv[1]);", script],

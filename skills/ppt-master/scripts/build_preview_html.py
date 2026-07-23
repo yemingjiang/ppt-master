@@ -214,10 +214,22 @@ def build_html(
     .sidebar, .inspector {{
       background: linear-gradient(180deg, #fbf8f5 0%, #f1e8df 100%);
       padding: 24px 18px;
-      overflow: auto;
     }}
-    .sidebar {{ border-right: 1px solid var(--line); }}
-    .inspector {{ border-left: 1px solid var(--line); }}
+    .sidebar {{
+      position: sticky;
+      top: 0;
+      align-self: start;
+      height: 100vh;
+      min-height: 0;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      border-right: 1px solid var(--line);
+    }}
+    .inspector {{
+      overflow: auto;
+      border-left: 1px solid var(--line);
+    }}
     .eyebrow {{
       display: inline-flex;
       align-items: center;
@@ -258,7 +270,14 @@ def build_html(
     }}
     .nav {{
       display: grid;
+      align-content: start;
       gap: 8px;
+      flex: 1;
+      min-height: 0;
+      overflow-y: auto;
+      overscroll-behavior: contain;
+      scrollbar-gutter: stable;
+      padding-right: 4px;
     }}
     .slide-link {{
       border: 1px solid var(--line);
@@ -484,8 +503,20 @@ def build_html(
     @media (max-width: 960px) {{
       .app {{ grid-template-columns: 1fr; }}
       .sidebar {{
+        position: static;
+        height: auto;
+        min-height: auto;
+        display: block;
+        overflow: visible;
         border-right: 0;
         border-bottom: 1px solid var(--line);
+      }}
+      .nav {{
+        min-height: auto;
+        overflow: visible;
+        overscroll-behavior: auto;
+        scrollbar-gutter: auto;
+        padding-right: 0;
       }}
       .toolbar {{
         flex-direction: column;
@@ -565,6 +596,7 @@ def build_html(
     const assetList = document.getElementById('assetList');
     const commentBox = document.getElementById('commentBox');
     const saveState = document.getElementById('saveState');
+    const outline = document.querySelector('.nav');
     const links = Array.from(document.querySelectorAll('.slide-link'));
     let current = 0;
 
@@ -726,12 +758,35 @@ def build_html(
       );
     }}
 
+    function syncOutlineToCurrentSlide() {{
+      const activeLink = links[current];
+      if (!outline || !activeLink || outline.scrollHeight <= outline.clientHeight) return;
+
+      const outlineRect = outline.getBoundingClientRect();
+      const activeRect = activeLink.getBoundingClientRect();
+      const edgePadding = 8;
+      let targetScrollTop = outline.scrollTop;
+
+      if (activeRect.top < outlineRect.top + edgePadding) {{
+        targetScrollTop -= outlineRect.top + edgePadding - activeRect.top;
+      }} else if (activeRect.bottom > outlineRect.bottom - edgePadding) {{
+        targetScrollTop += activeRect.bottom - (outlineRect.bottom - edgePadding);
+      }} else {{
+        return;
+      }}
+
+      const maxScrollTop = Math.max(0, outline.scrollHeight - outline.clientHeight);
+      targetScrollTop = Math.min(maxScrollTop, Math.max(0, targetScrollTop));
+      outline.scrollTop = targetScrollTop;
+    }}
+
     function selectSlide(index) {{
       if (!entries.length) return;
       current = (index + entries.length) % entries.length;
       links.forEach((link, idx) => {{
         link.classList.toggle('active', idx === current);
       }});
+      syncOutlineToCurrentSlide();
       const entry = entries[current];
       viewer.src = entry.href;
       toolbarTitle.textContent = entry.title;
