@@ -19,6 +19,8 @@ from html.parser import HTMLParser
 from pathlib import Path
 from urllib.parse import unquote, urlsplit
 
+from single_html_state import record_managed_fragment
+
 try:
     from PIL import Image
 except ImportError:  # pragma: no cover - optional dependency
@@ -621,6 +623,12 @@ def _rewrite_slide_placement(
         handle.write(rewritten)
         temporary_path = Path(handle.name)
     os.replace(temporary_path, slide_path)
+    record_managed_fragment(
+        project_path,
+        slide_path,
+        media_profile=ENCODING_PROFILE,
+        media_target=target,
+    )
     return True
 
 

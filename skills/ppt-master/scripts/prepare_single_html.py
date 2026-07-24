@@ -14,6 +14,14 @@ from urllib.parse import urlsplit
 
 from main_content_pipeline import parse_main_content
 from skeleton_utils import clean_md_inline, parse_design_spec, slide_key, slide_sort_key
+from single_html_state import (
+    empty_state,
+    load_state,
+    relative_path,
+    save_state,
+    sha256_file,
+    sha256_text,
+)
 
 
 DEFAULT_THEME = {
@@ -303,6 +311,7 @@ def prepare_single_html(
     *,
     source: str = "output",
     force: bool = False,
+    refresh_changed: bool = False,
     dry_run: bool = False,
     title: str | None = None,
     lang: str | None = None,
@@ -321,6 +330,7 @@ def prepare_single_html(
     html_output = project_path / "html_output"
     slides_dir = html_output / "slides"
     existing_manifest = _load_existing_manifest(project_path)
+    lineage_state = load_state(project_path)
     existing_slides = existing_manifest.get("slides", []) if existing_manifest else []
     existing_files_by_id = {
         str(item.get("id")): str(item.get("file"))
@@ -332,6 +342,7 @@ def prepare_single_html(
     }
     manifest_slides: list[dict[str, str]] = []
     planned: dict[Path, str] = {}
+    slide_plans: dict[Path, dict[str, str]] = {}
     seen_ids: set[str] = set()
     first_dimensions: tuple[float, float] | None = None
 
@@ -364,6 +375,13 @@ def prepare_single_html(
         )
         destination = slides_dir / destination_name
         planned[destination] = fragment
+        slide_plans[destination] = {
+            "id": slide_id,
+            "source_file": relative_path(project_path, svg_path),
+            "source_sha256": sha256_file(svg_path),
+            "scaffold_sha256": sha256_text(fragment),
+            "fragment_file": relative_path(project_path, destination),
+        }
         manifest_slides.append(
             {
                 "id": slide_id,
@@ -403,33 +421,138 @@ def prepare_single_html(
     created: list[str] = []
     updated: list[str] = []
     unchanged: list[str] = []
+    preserved_managed: list[str] = []
+    preserved_custom: list[str] = []
     conflicts: list[str] = []
+    custom_conflicts: list[str] = []
+    decisions: dict[Path, str] = {}
     for path, contents in planned.items():
         relative = path.relative_to(project_path).as_posix()
         if not path.exists():
             created.append(relative)
+            decisions[path] = "write"
             continue
         current = path.read_text(encoding="utf-8")
         if current == contents:
             unchanged.append(relative)
+            decisions[path] = "keep-planned"
         elif force:
             updated.append(relative)
+            decisions[path] = "write"
+        elif refresh_changed:
+            current_hash = sha256_text(current)
+            planned_hash = sha256_text(contents)
+            slide_plan = slide_plans.get(path)
+            if slide_plan is not None:
+                slide_id = slide_plan["id"]
+                previous = (
+                    lineage_state.get("slides", {}).get(slide_id)
+                    if lineage_state is not None
+                    else None
+                )
+                if not isinstance(previous, dict):
+                    conflicts.append(relative)
+                    decisions[path] = "conflict"
+                    continue
+                managed_hash = previous.get("managed_fragment_sha256")
+                scaffold_hash = previous.get("scaffold_sha256")
+                current_is_managed = (
+                    isinstance(managed_hash, str) and current_hash == managed_hash
+                )
+                scaffold_changed = (
+                    not isinstance(scaffold_hash, str) or planned_hash != scaffold_hash
+                )
+                if scaffold_changed and current_is_managed:
+                    updated.append(relative)
+                    decisions[path] = "write"
+                elif scaffold_changed:
+                    conflicts.append(relative)
+                    custom_conflicts.append(relative)
+                    decisions[path] = "conflict"
+                elif current_is_managed:
+                    preserved_managed.append(relative)
+                    decisions[path] = "preserve-managed"
+                else:
+                    preserved_custom.append(relative)
+                    decisions[path] = "preserve-custom"
+            else:
+                previous = (
+                    lineage_state.get("managed_files", {}).get(relative)
+                    if lineage_state is not None
+                    else None
+                )
+                managed_hash = (
+                    previous.get("managed_sha256")
+                    if isinstance(previous, dict)
+                    else None
+                )
+                if isinstance(managed_hash, str) and current_hash == managed_hash:
+                    updated.append(relative)
+                    decisions[path] = "write"
+                else:
+                    conflicts.append(relative)
+                    custom_conflicts.append(relative)
+                    decisions[path] = "conflict"
         else:
             conflicts.append(relative)
+            decisions[path] = "conflict"
 
     if conflicts and not dry_run:
         joined = ", ".join(conflicts[:5])
         suffix = "" if len(conflicts) <= 5 else f" (+{len(conflicts) - 5} more)"
         raise PreparationError(
             f"refusing to overwrite existing HTML sources: {joined}{suffix}. "
-            "Re-run with --dry-run to inspect or --force to replace generated targets."
+            "Re-run with --dry-run to inspect, --refresh-changed to update only "
+            "tracked generated sources, or --force to replace generated targets."
         )
 
     if not dry_run:
         for path, contents in planned.items():
+            if decisions.get(path) not in {"write", "keep-planned"}:
+                continue
             if path.exists() and path.read_text(encoding="utf-8") == contents:
                 continue
             _atomic_write(path, contents)
+
+        next_state = lineage_state or empty_state(source)
+        next_state["source"] = source
+        next_state["inputs"] = {
+            relative_path(project_path, input_path): sha256_file(input_path)
+            for input_path in (
+                project_path / "main_content.md",
+                project_path / "design_spec.md",
+            )
+            if input_path.exists()
+        }
+        next_slides: dict[str, dict[str, str]] = {}
+        for path, slide_plan in slide_plans.items():
+            slide_id = slide_plan["id"]
+            decision = decisions[path]
+            if decision in {"write", "keep-planned"}:
+                next_slides[slide_id] = {
+                    **slide_plan,
+                    "managed_fragment_sha256": sha256_file(path),
+                }
+            else:
+                previous = next_state.get("slides", {}).get(slide_id)
+                if not isinstance(previous, dict):
+                    raise PreparationError(
+                        f"cannot preserve untracked HTML fragment state for slide {slide_id}"
+                    )
+                next_slides[slide_id] = previous
+        next_state["slides"] = next_slides
+        managed_files = dict(next_state.get("managed_files", {}))
+        for path, contents in planned.items():
+            if path in slide_plans:
+                continue
+            relative = relative_path(project_path, path)
+            if decisions[path] in {"write", "keep-planned"}:
+                managed_files[relative] = {
+                    "managed_sha256": sha256_file(path),
+                    "planned_sha256": sha256_text(contents),
+                }
+        next_state["managed_files"] = managed_files
+        save_state(project_path, next_state)
 
     return {
         "status": "planned" if dry_run else "ok",
@@ -439,7 +562,11 @@ def prepare_single_html(
         "created": created,
         "updated": updated,
         "unchanged": unchanged,
+        "preserved_managed": preserved_managed,
+        "preserved_custom": preserved_custom,
         "would_overwrite": conflicts,
+        "custom_conflicts": custom_conflicts,
+        "state_file": str((html_output / ".ppt-master-state.json").resolve()),
         "manifest": str((html_output / "presentation.json").resolve()),
     }
 
@@ -451,6 +578,7 @@ def parse_args() -> argparse.Namespace:
             "Examples:\n"
             "  python3 prepare_single_html.py projects/quarterly-review --dry-run --json\n"
             "  python3 prepare_single_html.py projects/quarterly-review --source output\n"
+            "  python3 prepare_single_html.py projects/quarterly-review --refresh-changed --json\n"
             "  python3 prepare_single_html.py projects/quarterly-review --force --json"
         ),
         formatter_class=argparse.RawDescriptionHelpFormatter,
@@ -470,6 +598,15 @@ def parse_args() -> argparse.Namespace:
         help="Replace generated target files that differ. Extra files are never deleted.",
     )
     parser.add_argument(
+        "--refresh-changed",
+        action="store_true",
+        help=(
+            "Refresh only tracked generated files whose scaffold inputs changed. "
+            "Preserve unchanged managed media derivatives and deliberate custom fragments; "
+            "fail when a customized fragment and its source both changed."
+        ),
+    )
+    parser.add_argument(
         "--dry-run",
         action="store_true",
         help="Report planned writes and conflicts without changing files.",
@@ -481,10 +618,13 @@ def parse_args() -> argparse.Namespace:
 def main() -> int:
     args = parse_args()
     try:
+        if args.force and args.refresh_changed:
+            raise PreparationError("--force cannot be combined with --refresh-changed")
         result = prepare_single_html(
             args.project_path,
             source=args.source,
             force=args.force,
+            refresh_changed=args.refresh_changed,
             dry_run=args.dry_run,
             title=args.title,
             lang=args.lang,

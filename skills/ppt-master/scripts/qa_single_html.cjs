@@ -238,17 +238,36 @@ async function run() {
     checks.namedHash = true;
     checks.hash = true;
 
-    const autoplayVideo = page.locator(".pm-slide video[autoplay]").first();
-    if (await autoplayVideo.count()) {
-      const mediaSlideId = await autoplayVideo.evaluate(
-        (element) => element.closest(".pm-slide")?.dataset.slideId || ""
-      );
-      if (!mediaSlideId) throw new Error("autoplay video is not inside a slide");
-      await page.goto(`${presentationUrl}#slide=${encodeURIComponent(mediaSlideId)}`, {
-        waitUntil: "load",
+    const autoplayVideos = page.locator(".pm-slide video[autoplay]");
+    const mediaCount = await autoplayVideos.count();
+    let testedMedia = 0;
+    for (let mediaIndex = 0; mediaIndex < mediaCount; mediaIndex += 1) {
+      const descriptor = await autoplayVideos.nth(mediaIndex).evaluate((element) => {
+        const slide = element.closest(".pm-slide");
+        const videos = slide ? Array.from(slide.querySelectorAll("video[autoplay]")) : [];
+        return {
+          slideId: slide?.dataset.slideId || "",
+          indexInSlide: videos.indexOf(element),
+          placementId: element.dataset.pmPlacementId || "",
+        };
       });
-      await expectSlide(mediaSlideId, "autoplay media slide");
-      const activeVideo = page.locator(".pm-slide.pm-active video[autoplay]").first();
+      if (!descriptor.slideId || descriptor.indexInSlide < 0) {
+        throw new Error(`autoplay video ${mediaIndex + 1} is not inside a slide`);
+      }
+      await page.goto(
+        `${presentationUrl}#slide=${encodeURIComponent(descriptor.slideId)}`,
+        { waitUntil: "load" }
+      );
+      await expectSlide(descriptor.slideId, `autoplay media ${mediaIndex + 1} slide`);
+      const activeVideo = descriptor.placementId
+        ? page.locator(
+          `.pm-slide.pm-active video[autoplay][data-pm-placement-id="${descriptor.placementId}"]`
+        )
+        : page.locator(".pm-slide.pm-active video[autoplay]").nth(descriptor.indexInSlide);
+      const stableVideo = autoplayVideos.nth(mediaIndex);
+      if (await activeVideo.count() !== 1) {
+        throw new Error(`unable to resolve autoplay video ${mediaIndex + 1} on slide ${descriptor.slideId}`);
+      }
       const mediaContract = await activeVideo.evaluate((video) => ({
         autoplay: video.autoplay,
         muted: video.muted,
@@ -261,18 +280,90 @@ async function run() {
         || !mediaContract.loop
         || !mediaContract.playsInline
       ) {
-        throw new Error("optimized autoplay video is missing muted/loop/playsinline");
+        throw new Error(
+          `autoplay video ${mediaIndex + 1} on slide ${descriptor.slideId} `
+          + "is missing muted/loop/playsinline"
+        );
       }
-      await page.waitForFunction(() => {
-        const video = document.querySelector(".pm-slide.pm-active video[autoplay]");
-        return video && video.readyState >= 2 && !video.paused;
-      });
+      await page.waitForFunction(
+        ({ slideId, placementId, indexInSlide }) => {
+          const slide = Array.from(document.querySelectorAll(".pm-slide"))
+            .find((candidate) => candidate.dataset.slideId === slideId);
+          if (!slide) return false;
+          const video = placementId
+            ? slide.querySelector(`video[data-pm-placement-id="${placementId}"]`)
+            : slide.querySelectorAll("video[autoplay]")[indexInSlide];
+          return video && video.readyState >= 2 && !video.paused;
+        },
+        descriptor
+      );
       const initialTime = await activeVideo.evaluate((video) => video.currentTime);
-      await page.waitForFunction((before) => {
-        const video = document.querySelector(".pm-slide.pm-active video[autoplay]");
-        return video && Math.abs(video.currentTime - before) > 0.05;
-      }, initialTime);
+      await page.waitForFunction(
+        ({ descriptor, before }) => {
+          const slide = Array.from(document.querySelectorAll(".pm-slide"))
+            .find((candidate) => candidate.dataset.slideId === descriptor.slideId);
+          if (!slide) return false;
+          const video = descriptor.placementId
+            ? slide.querySelector(`video[data-pm-placement-id="${descriptor.placementId}"]`)
+            : slide.querySelectorAll("video[autoplay]")[descriptor.indexInSlide];
+          return video && Math.abs(video.currentTime - before) > 0.05;
+        },
+        { descriptor, before: initialTime }
+      );
+
+      const currentSlideIndex = await page.locator(".pm-slide").evaluateAll(
+        (slides, slideId) => slides.findIndex((slide) => slide.dataset.slideId === slideId),
+        descriptor.slideId
+      );
+      const awayKey = currentSlideIndex < slideCount - 1 ? "ArrowRight" : "ArrowLeft";
+      const returnKey = awayKey === "ArrowRight" ? "ArrowLeft" : "ArrowRight";
+      await blur();
+      await page.keyboard.press(awayKey);
+      await page.waitForTimeout(100);
+      // The active-only locator intentionally stops matching after navigation.
+      // Keep a document-stable locator for the inactive-state assertion.
+      const pausedWhileInactive = await stableVideo.evaluate((video) => video.paused);
+      if (!pausedWhileInactive) {
+        throw new Error(
+          `autoplay video ${mediaIndex + 1} on slide ${descriptor.slideId} `
+          + "did not pause when the slide became inactive"
+        );
+      }
+      await page.keyboard.press(returnKey);
+      await expectSlide(descriptor.slideId, `return to media ${mediaIndex + 1}`);
+      await page.waitForFunction(
+        ({ slideId, placementId, indexInSlide }) => {
+          const slide = Array.from(document.querySelectorAll(".pm-slide"))
+            .find((candidate) => candidate.dataset.slideId === slideId);
+          if (!slide) return false;
+          const video = placementId
+            ? slide.querySelector(`video[data-pm-placement-id="${placementId}"]`)
+            : slide.querySelectorAll("video[autoplay]")[indexInSlide];
+          return video && !video.paused;
+        },
+        descriptor
+      );
+      testedMedia += 1;
     }
+    const largeEmbeddedGifs = await page.evaluate(() => {
+      const references = [];
+      document.querySelectorAll("img[src], image").forEach((element) => {
+        const value = element.getAttribute("src")
+          || element.getAttribute("href")
+          || element.getAttribute("xlink:href")
+          || "";
+        if (/^data:image\/gif;base64,/i.test(value) && value.length > 8 * 1024 * 1024 * 4 / 3) {
+          references.push(value.slice(0, 48));
+        }
+      });
+      return references;
+    });
+    if (largeEmbeddedGifs.length) {
+      throw new Error(`final presentation still contains ${largeEmbeddedGifs.length} large embedded GIF(s)`);
+    }
+    checks.mediaCount = mediaCount;
+    checks.testedMedia = testedMedia;
+    checks.noLargeEmbeddedGifs = true;
     checks.mediaPlayback = true;
 
     await blur();

@@ -17,6 +17,11 @@ from urllib.parse import unquote, unquote_to_bytes, urlsplit
 from bs4 import BeautifulSoup, Comment, NavigableString
 
 from skeleton_utils import parse_notes_total
+from single_html_state import (
+    inspect_export_state,
+    inspect_source_state,
+    record_export,
+)
 
 
 SKILL_DIR = Path(__file__).resolve().parent.parent
@@ -878,14 +883,37 @@ def check_single_html(project_path: Path) -> dict[str, object]:
     project_path = project_path.resolve()
     document, _manifest, packager, slide_count = _assemble_single_html(project_path)
     estimated_bytes = len(document.encode("utf-8"))
+    output_path = _default_output_path(project_path).resolve()
+    source_freshness = inspect_source_state(project_path)
+    export_freshness = inspect_export_state(
+        project_path,
+        planned_document=document,
+        output_path=output_path,
+    )
+    status = (
+        "stale"
+        if source_freshness["state"] in {"stale", "conflict"}
+        or export_freshness["state"] == "stale"
+        else "ok"
+    )
     return {
-        "status": "ok",
+        "status": status,
         "mode": "check",
         "project_path": str(project_path),
-        "planned_output_html": str(_default_output_path(project_path).resolve()),
+        "planned_output_html": str(output_path),
         "slides": slide_count,
         "embedded_assets": packager.embedded_count,
         "estimated_bytes": estimated_bytes,
+        "source_state": source_freshness["state"],
+        "export_state": export_freshness["state"],
+        "needs_build": export_freshness["state"] != "current",
+        "stale_slides": source_freshness["stale_slides"],
+        "conflicted_slides": source_freshness["conflicted_slides"],
+        "customized_slides": source_freshness["customized_slides"],
+        "missing_slides": source_freshness["missing_slides"],
+        "stale_inputs": source_freshness["stale_inputs"],
+        "untracked_slides": source_freshness["untracked_slides"],
+        "planned_document_sha256": export_freshness["planned_document_sha256"],
         "media": packager.asset_report(),
         "warnings": _build_warnings(estimated_bytes, packager),
     }
@@ -894,9 +922,28 @@ def check_single_html(project_path: Path) -> dict[str, object]:
 def build_single_html(project_path: Path, output_path: Path | None = None) -> dict[str, object]:
     """Build an offline, self-contained HTML presentation without altering a prior target on failure."""
     project_path = project_path.resolve()
+    source_freshness = inspect_source_state(project_path)
+    if source_freshness["state"] in {"stale", "conflict"}:
+        affected = sorted(
+            set(source_freshness["stale_slides"])
+            | set(source_freshness["conflicted_slides"])
+            | set(source_freshness["missing_slides"])
+        )
+        detail = ", ".join(affected) or ", ".join(source_freshness["stale_inputs"])
+        raise PackagingError(
+            "final HTML sources are stale relative to the review skeleton"
+            f"{f' ({detail})' if detail else ''}. "
+            "Run prepare_single_html.py <project_path> --refresh-changed --json, "
+            "resolve any customized-fragment conflicts, then build again."
+        )
     document, _manifest, packager, slide_count = _assemble_single_html(project_path)
     output_path = (output_path or _default_output_path(project_path)).resolve()
     bytes_written = _write_atomically(output_path, document)
+    export_freshness = record_export(
+        project_path,
+        planned_document=document,
+        output_path=output_path,
+    )
     return {
         "status": "ok",
         "mode": "build",
@@ -906,6 +953,10 @@ def build_single_html(project_path: Path, output_path: Path | None = None) -> di
         "slides": slide_count,
         "embedded_assets": packager.embedded_count,
         "bytes": bytes_written,
+        "source_state": source_freshness["state"],
+        "export_state": export_freshness["state"],
+        "planned_document_sha256": export_freshness["planned_document_sha256"],
+        "output_sha256": export_freshness["output_sha256"],
         "media": packager.asset_report(),
         "warnings": _build_warnings(bytes_written, packager),
     }
@@ -957,7 +1008,10 @@ def main() -> int:
     if args.json:
         print(json.dumps(result, ensure_ascii=False, separators=(",", ":")))
     elif args.check:
-        print(f"Check passed: {result['planned_output_html']}")
+        print(f"Check status: {result['status']}")
+        print(f"Planned output: {result['planned_output_html']}")
+        print(f"Source state: {result['source_state']}")
+        print(f"Export state: {result['export_state']}")
         print(f"Slides: {result['slides']}")
         print(f"Embedded resources: {result['embedded_assets']}")
         print(f"Estimated output bytes: {result['estimated_bytes']}")

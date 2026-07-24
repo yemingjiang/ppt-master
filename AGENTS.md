@@ -51,10 +51,13 @@ python3 skills/ppt-master/scripts/svg_quality_checker.py <project_path>
 # Skeleton review package
 python3 skills/ppt-master/scripts/generate_skeleton_docs.py <project_path> --overwrite
 python3 skills/ppt-master/scripts/build_preview_html.py <project_path> --source output
+python3 skills/ppt-master/scripts/qa_preview_html.py <project_path> --slides 01,06,12 --screenshots <qa_dir> --json
 
 # Final offline single-file HTML (after the review skeleton is confirmed)
 # Read skills/ppt-master/references/html-presentation.md before authoring html_output/
-python3 skills/ppt-master/scripts/build_single_html.py <project_path>
+python3 skills/ppt-master/scripts/finalize_single_html.py <project_path> --dry-run --json
+python3 skills/ppt-master/scripts/finalize_single_html.py <project_path> --json
+# Add --apply-media only after the user requests or approves GIF-to-MP4 optimization.
 # Output: <project_path>/exports/<project_name>.single.html
 
 # Legacy direct-export pipeline (compatibility path only; MUST run sequentially, one at a time — NEVER batch)

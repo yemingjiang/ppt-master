@@ -25,6 +25,7 @@ python3 scripts/project_manager.py import-sources <project_path> <source_files..
 # AI produces design_spec.md, main_content.md, style_sheet.md, asset_manifest.md, notes/, and svg_output/
 python3 scripts/generate_skeleton_docs.py <project_path> --overwrite
 python3 scripts/build_preview_html.py <project_path> --source output
+python3 scripts/qa_preview_html.py <project_path> --slides 01,06,12 --screenshots <qa_dir> --json
 ```
 
 ## Delivery Modes
@@ -56,18 +57,13 @@ Final polished deck when Native Editable Handoff is selected:
 Final offline HTML presentation:
 
 ```bash
-python3 scripts/prepare_single_html.py <project_path> --dry-run --json
-python3 scripts/prepare_single_html.py <project_path>
-python3 scripts/optimize_single_html_media.py <project_path> --json
-# Only after the user requests/approves optimization:
-python3 scripts/optimize_single_html_media.py <project_path> --apply --json
-python3 scripts/build_single_html.py <project_path> --check --json
-python3 scripts/build_single_html.py <project_path>
-python3 scripts/qa_single_html.py <project_path> --screenshots <qa_dir> --json
+python3 scripts/finalize_single_html.py <project_path> --dry-run --json
+python3 scripts/finalize_single_html.py <project_path> --json
+# Add --apply-media only after the user requests/approves optimization.
 # Output: <project_path>/exports/<project_name>.single.html
 ```
 
-Before authoring `html_output/`, read `../references/html-presentation.md`. The initializer creates deterministic sources from approved SVGs; `--force` is required to refresh existing generated files. The media optimizer analyzes GIFs of at least 8 MiB against a 1080p presentation target by default. Use `--apply` only after the user requests or approves optimization, and use `--target 4k` only for an explicit 4K requirement. Original GIFs and source SVGs remain unchanged. The builder packages the manifest, slide fragments, notes, and project-local resources into the offline artifact. Its size warnings are advisory and it never transcodes media by itself. The QA command runs the input matrix, including autoplay media, in a real browser and can produce screenshots/contact sheets for required visual inspection.
+Before authoring `html_output/`, read `../references/html-presentation.md`. The initializer records source lineage in `html_output/.ppt-master-state.json`; later runs use `--refresh-changed` to refresh only unchanged managed fragments and stop on source/customization conflicts. Use `--force` only for an intentional full scaffold reset after inspecting a dry-run. The media optimizer analyzes GIFs of at least 8 MiB against a 1080p presentation target by default. Use `--apply` only after the user requests or approves optimization, and use `--target 4k` only for an explicit 4K requirement. Original GIFs and source SVGs remain unchanged. The finalizer checks optional terminology policy, refreshes safely, analyzes or applies media optimization, packages the deck, and runs real-browser QA across every optimized video.
 
 Legacy direct export from `ppt-master` (explicit request only):
 
@@ -86,8 +82,8 @@ python3 scripts/update_repo.py
 | Conversion | `source_to_md/pdf_to_md.py`, `source_to_md/doc_to_md.py`, `source_to_md/ppt_to_md.py`, `source_to_md/web_to_md.py`, `source_to_md/web_to_md.cjs` | [docs/conversion.md](./docs/conversion.md) |
 | Project management | `project_manager.py`, `batch_validate.py`, `generate_examples_index.py`, `error_helper.py`, `pptx_template_import.py`, `clean_pptx_placeholders.py` | [docs/project.md](./docs/project.md) |
 | Skeleton docs | `generate_skeleton_docs.py` | this README |
-| Draft preview | `build_preview_html.py` | this README |
-| Final offline HTML | `prepare_single_html.py`, `optimize_single_html_media.py`, `build_single_html.py`, `qa_single_html.py`, `qa_single_html.cjs` | [../references/html-presentation.md](../references/html-presentation.md) |
+| Draft preview | `build_preview_html.py`, `qa_preview_html.py`, `qa_preview_html.cjs` | [../references/review-loop.md](../references/review-loop.md) |
+| Final offline HTML | `finalize_single_html.py`, `check_terminology.py`, `prepare_single_html.py`, `single_html_state.py`, `optimize_single_html_media.py`, `build_single_html.py`, `qa_single_html.py`, `qa_single_html.cjs` | [../references/html-presentation.md](../references/html-presentation.md) |
 | SVG pipeline / legacy export | `finalize_svg.py`, `svg_to_pptx.py`, `total_md_split.py`, `svg_quality_checker.py` | [docs/svg-pipeline.md](./docs/svg-pipeline.md) |
 | Image tools | `image_gen.py` (local fallback), `analyze_images.py`, `gemini_watermark_remover.py` | [docs/image.md](./docs/image.md) |
 | Repo maintenance | `update_repo.py` | README install/update section |
@@ -117,17 +113,15 @@ Draft review:
 ```bash
 python3 scripts/generate_skeleton_docs.py <project_path> --overwrite
 python3 scripts/build_preview_html.py <project_path> --source output
+python3 scripts/qa_preview_html.py <project_path> --slides 01,06,12 --screenshots <qa_dir> --json
 ```
 
 Final offline HTML:
 
 ```bash
-python3 scripts/prepare_single_html.py <project_path> --dry-run --json
-python3 scripts/prepare_single_html.py <project_path>
-python3 scripts/optimize_single_html_media.py <project_path> --json
-python3 scripts/build_single_html.py <project_path> --check --json
-python3 scripts/build_single_html.py <project_path>
-python3 scripts/qa_single_html.py <project_path> --screenshots <qa_dir> --json
+python3 scripts/finalize_single_html.py <project_path> --dry-run --json
+python3 scripts/finalize_single_html.py <project_path> --json
+# Add --apply-media only after approval.
 ```
 
 Template source import:
@@ -176,7 +170,8 @@ python3 scripts/update_repo.py --skip-pip
 - Prefer `generate_skeleton_docs.py` to keep `main_content.md`, `style_sheet.md`, and `asset_manifest.md` synchronized
 - Prefer `preview/index.html` over static PDF when reviewing draft skeletons
 - Treat `preview/index.html` as the main review entry point. In Codex desktop, return its absolute file URL to the user.
-- Treat `preview/index.html` as a review artifact, not the final HTML. For the selected HTML final target, author `html_output/` under `references/html-presentation.md` and run `build_single_html.py`.
+- Run `qa_preview_html.py` after building or revising a preview; include the changed slides in `--slides` and inspect its contact sheet.
+- Treat `preview/index.html` as a review artifact, not the final HTML. For the selected HTML final target, author `html_output/` under `references/html-presentation.md` and run `finalize_single_html.py`.
 - `preview/index.html` opened via `file://` should support the no-server review loop: keep comments in local browser storage, then use copy-all and paste the review comments back to Codex
 - After Codex applies the pasted review and rebuilds `preview/index.html`, treat that rebuilt file as the next review round; old local comments should not carry over
 - Prefer continuing from the confirmed skeleton package into the internal native rebuild phase for final editable production
@@ -187,6 +182,8 @@ python3 scripts/update_repo.py --skip-pip
 
 - [Conversion Tools](./docs/conversion.md)
 - [Project Tools](./docs/project.md)
+- [Review Loop](../references/review-loop.md)
+- [Single-file HTML Presentation](../references/html-presentation.md)
 - [SVG Pipeline Tools](./docs/svg-pipeline.md)
 - [Image Tools](./docs/image.md)
 - [Troubleshooting](./docs/troubleshooting.md)

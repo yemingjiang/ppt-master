@@ -16,6 +16,7 @@ if str(SCRIPT_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPT_DIR))
 
 from prepare_single_html import PreparationError, prepare_single_html  # noqa: E402
+from single_html_state import load_state, record_managed_fragment  # noqa: E402
 
 
 class PrepareSingleHtmlTests(unittest.TestCase):
@@ -99,6 +100,74 @@ class PrepareSingleHtmlTests(unittest.TestCase):
         self.assertEqual(result["created"], [])
         self.assertEqual(result["updated"], [])
         self.assertGreaterEqual(len(result["unchanged"]), 4)
+        state = load_state(self.project)
+        self.assertIsNotNone(state)
+        self.assertEqual(sorted(state["slides"]), ["01", "02"])
+        self.assertTrue(state["slides"]["01"]["source_sha256"])
+        self.assertTrue(state["slides"]["01"]["managed_fragment_sha256"])
+
+    def test_refresh_changed_updates_only_changed_managed_slide(self) -> None:
+        prepare_single_html(self.project)
+        first_slide = self.project / "html_output" / "slides" / "01_cover.html"
+        second_slide = self.project / "html_output" / "slides" / "02_result.html"
+        second_before = second_slide.read_bytes()
+        source = self.project / "svg_output" / "01_cover.svg"
+        source.write_text(
+            source.read_text(encoding="utf-8").replace("</svg>", "<text>Updated</text></svg>"),
+            encoding="utf-8",
+        )
+
+        result = prepare_single_html(self.project, refresh_changed=True)
+
+        self.assertEqual(result["updated"], ["html_output/slides/01_cover.html"])
+        self.assertIn("Updated", first_slide.read_text(encoding="utf-8"))
+        self.assertEqual(second_slide.read_bytes(), second_before)
+        self.assertEqual(result["custom_conflicts"], [])
+
+    def test_refresh_changed_preserves_managed_media_derivative_when_source_is_unchanged(self) -> None:
+        prepare_single_html(self.project)
+        target = self.project / "html_output" / "slides" / "01_cover.html"
+        target.write_text(
+            target.read_text(encoding="utf-8").replace(
+                "</section>", '<video data-pm-source-gif="demo.gif"></video></section>'
+            ),
+            encoding="utf-8",
+        )
+        record_managed_fragment(self.project, target, media_profile="test", media_target="1080p")
+
+        result = prepare_single_html(self.project, refresh_changed=True)
+
+        self.assertIn("html_output/slides/01_cover.html", result["preserved_managed"])
+        self.assertIn("<video", target.read_text(encoding="utf-8"))
+
+    def test_refresh_changed_preserves_custom_fragment_until_its_scaffold_changes(self) -> None:
+        prepare_single_html(self.project)
+        target = self.project / "html_output" / "slides" / "01_cover.html"
+        target.write_text(
+            target.read_text(encoding="utf-8").replace("</section>", "<p>Custom</p></section>"),
+            encoding="utf-8",
+        )
+
+        first = prepare_single_html(self.project, refresh_changed=True)
+
+        self.assertIn("html_output/slides/01_cover.html", first["preserved_custom"])
+        self.assertIn("Custom", target.read_text(encoding="utf-8"))
+
+        source = self.project / "svg_output" / "01_cover.svg"
+        source.write_text(
+            source.read_text(encoding="utf-8").replace("</svg>", "<text>Changed</text></svg>"),
+            encoding="utf-8",
+        )
+        with self.assertRaisesRegex(PreparationError, "refusing to overwrite"):
+            prepare_single_html(self.project, refresh_changed=True)
+
+        dry_run = prepare_single_html(
+            self.project,
+            refresh_changed=True,
+            dry_run=True,
+        )
+        self.assertIn("html_output/slides/01_cover.html", dry_run["custom_conflicts"])
+        self.assertIn("Custom", target.read_text(encoding="utf-8"))
 
     def test_refuses_to_overwrite_different_existing_source(self) -> None:
         prepare_single_html(self.project)
@@ -181,6 +250,26 @@ class PrepareSingleHtmlTests(unittest.TestCase):
         payload = json.loads(completed.stdout)
         self.assertEqual(payload["status"], "planned")
         self.assertEqual(payload["slides"], 2)
+
+    def test_cli_rejects_force_with_refresh_changed(self) -> None:
+        completed = subprocess.run(
+            [
+                sys.executable,
+                str(SCRIPT_DIR / "prepare_single_html.py"),
+                str(self.project),
+                "--force",
+                "--refresh-changed",
+                "--json",
+            ],
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+
+        self.assertNotEqual(completed.returncode, 0)
+        payload = json.loads(completed.stdout)
+        self.assertEqual(payload["status"], "error")
+        self.assertIn("cannot be combined", payload["error"])
 
 
 if __name__ == "__main__":

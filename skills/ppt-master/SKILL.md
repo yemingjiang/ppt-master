@@ -109,10 +109,13 @@ description: Use when asked to create a presentation outline, review draft, fina
 | `${SKILL_DIR}/scripts/image_gen.py` | Local fallback AI image generation CLI (prefer Codex `image_gen` tool in Codex sessions) |
 | `${SKILL_DIR}/scripts/generate_skeleton_docs.py` | Generate standard `main_content.md`, `style_sheet.md`, and `asset_manifest.md` |
 | `${SKILL_DIR}/scripts/build_preview_html.py` | Build lightweight HTML review draft from `svg_output/` or `svg_final/` |
+| `${SKILL_DIR}/scripts/qa_preview_html.py` | Browser-QA a review preview and capture selected slide screenshots |
+| `${SKILL_DIR}/scripts/check_terminology.py` | Check optional project terminology rules without rewriting content |
 | `${SKILL_DIR}/scripts/prepare_single_html.py` | Deterministically scaffold final HTML sources from approved SVGs |
 | `${SKILL_DIR}/scripts/optimize_single_html_media.py` | Analyze large GIF placements and optionally replace final-HTML copies with presentation-sized MP4 loops |
 | `${SKILL_DIR}/scripts/build_single_html.py` | Package `html_output/` as a final offline single-file HTML presentation |
 | `${SKILL_DIR}/scripts/qa_single_html.py` | Browser-QA a packaged HTML presentation and optionally capture screenshots |
+| `${SKILL_DIR}/scripts/finalize_single_html.py` | Safely refresh, optimize, package, and QA the selected final HTML target |
 | `${SKILL_DIR}/scripts/svg_quality_checker.py` | SVG quality check |
 | `${SKILL_DIR}/scripts/total_md_split.py` | Speaker notes splitting |
 | `${SKILL_DIR}/scripts/finalize_svg.py` | SVG post-processing (unified entry) |
@@ -339,6 +342,7 @@ Read references/executor-consultant-top.md # Top consulting style (MBB level)
 - Generate SVG pages sequentially, one page at a time, in one continuous pass → `<project_path>/svg_output/`
 
 **Draft Packaging Phase**:
+- Read `references/review-loop.md` before packaging or revising the review surface.
 - Update or generate `<project_path>/main_content.md`
 - Generate `<project_path>/style_sheet.md` and `<project_path>/asset_manifest.md`
   - Recommended command: `python3 ${SKILL_DIR}/scripts/generate_skeleton_docs.py <project_path> --overwrite`
@@ -346,12 +350,7 @@ Read references/executor-consultant-top.md # Top consulting style (MBB level)
 - Build lightweight HTML review draft → `<project_path>/preview/index.html`
   - Recommended command: `python3 ${SKILL_DIR}/scripts/build_preview_html.py <project_path> --source output`
   - `preview/index.html` is the default review entry. In Codex desktop, return its absolute file link in the response.
-  - Static `file://` preview is the default review flow. It saves comments locally in the browser and should expose "复制全部批注" so the user can paste the review back to Codex without any web server.
-  - In `preview/index.html`, render the Previous/Next controls on the right side of the top current-slide takeaway card. Do not render a separate toolbar containing the current-slide title or review-scope guidance, and do not render navigation below or over the slide viewer.
-  - On desktop and tablet layouts, the left outline list must scroll independently while its header remains visible. Whenever the active slide changes through outline clicks, navigation buttons, keyboard navigation, or the initial URL hash, the active outline item must automatically move into the outline viewport without scrolling the main document.
-  - The center slide viewer must always fit the complete SVG canvas into its currently available area. Read each SVG's intrinsic canvas dimensions, preserve its aspect ratio, and scale the fixed canvas with `contain` behavior whenever the viewer or window size changes. Never require horizontal or vertical scrolling inside the slide viewer, and never crop slide content merely because the browser window or three-column review layout is smaller than the source canvas.
-  - Keep the center slide interactive enough for reviewers to drag-select and copy visible SVG text. Do not disable pointer events on the slide iframe. When same-origin frame access is available, forward Left/Right key presses from the slide document to the preview navigation so text selection does not unnecessarily sacrifice keyboard paging.
-  - After Codex applies pasted review comments and rebuilds `preview/index.html`, treat the new file as a fresh review round. Old local comments should not be carried into the new build.
+  - Follow the complete preview interaction, scrolling, containment, comment-reset, and targeted browser-QA contract in `references/review-loop.md`.
 - Only generate `preview/draft.pdf` when the user explicitly asks for PDF review
 
 **✅ Checkpoint — Confirm the skeleton package is fully generated. Proceed to Step 7 human review**:
@@ -370,16 +369,7 @@ Read references/executor-consultant-top.md # Top consulting style (MBB level)
 
 ⛔ **BLOCKING**: Present the draft and wait for human feedback. Iterate on the skeleton until the user confirms the structure is locked.
 
-Allowed iteration scope in this loop:
-
-- Page count
-- Page order
-- Per-page title
-- Per-page one-line takeaway
-- Body bullets
-- Asset selection
-- Style direction
-- Notes framing
+Read and follow `references/review-loop.md` for the complete allowed iteration scope, preview QA, and post-final feedback behavior.
 
 During this loop:
 
@@ -387,6 +377,7 @@ During this loop:
 - Use `draft.pdf` only when the user explicitly prefers a static review file
 - Do not begin any final production before Step 7 confirms the skeleton is stable
 - Treat the reviewed SVG/HTML draft as the **approved structure and visual intent**, not as a promise that direct SVG export will equal the final editable PPT
+- If feedback arrives after final production, reopen this loop, rebuild the preview, mark existing final artifacts stale, and do not overwrite them until final regeneration is requested or the revised skeleton is confirmed.
 
 **✅ Checkpoint — Human confirms the skeleton is locked for final production**:
 ```markdown
@@ -413,21 +404,15 @@ Before authoring final HTML sources, read:
 ${SKILL_DIR}/references/html-presentation.md
 ```
 
-Author `html_output/` sequentially with the current main agent, then package and offline-QA:
+Author `html_output/` sequentially with the current main agent. Use the finalizer as the normal packaging path:
 
 ```bash
-python3 ${SKILL_DIR}/scripts/prepare_single_html.py <project_path> --dry-run --json
-# On first scaffold, or for an intentional refresh:
-python3 ${SKILL_DIR}/scripts/prepare_single_html.py <project_path> [--force]
-python3 ${SKILL_DIR}/scripts/optimize_single_html_media.py <project_path> --json
-# Only after the user requests/approves media optimization:
-python3 ${SKILL_DIR}/scripts/optimize_single_html_media.py <project_path> --apply --json
-python3 ${SKILL_DIR}/scripts/build_single_html.py <project_path> --check --json
-python3 ${SKILL_DIR}/scripts/build_single_html.py <project_path>
-python3 ${SKILL_DIR}/scripts/qa_single_html.py <project_path> --screenshots <qa_dir> --json
+python3 ${SKILL_DIR}/scripts/finalize_single_html.py <project_path> --dry-run --json
+python3 ${SKILL_DIR}/scripts/finalize_single_html.py <project_path> --json
+# Add --apply-media only after the user requests or approves media optimization.
 ```
 
-Use `prepare_single_html.py` only as deterministic scaffolding; preserve deliberate HTML edits unless an intentional `--force` refresh is required. Inspect the QA contact sheets and test the complete input matrix in `references/html-presentation.md`.
+The finalizer uses lineage-aware `--refresh-changed` behavior: it refreshes generated fragments only when they still match the last managed version, preserves deliberate HTML edits, and blocks on source/customization conflicts. Use `--force-scaffold` only for an intentional full generated-source reset after inspecting its dry-run. The manual recovery and debugging sequence remains documented in `references/html-presentation.md`.
 
 Always analyze large GIFs before packaging. The media optimizer defaults to a 1920×1080 presentation target and ignores GIFs below 8 MiB; use `--min-bytes 0` only when every GIF should be reviewed. Run `--apply` only after the user requests or approves optimization. It keeps the original GIF and source SVG unchanged, writes derived H.264 MP4 files under `html_output/media_optimized/`, and rewrites only the final HTML slide fragments. Optimized videos must be ordinary HTML overlays positioned relative to the `.pm-slide` root; do not place video inside SVG `foreignObject`, because browser and display-scaling combinations can misplace its compositor layer. Add `--target 4k` only when the user explicitly requires 4K presentation; never infer 4K from source-media resolution.
 
@@ -471,6 +456,7 @@ Before switching roles, you **MUST first read** the corresponding reference file
 | Canvas format specification | `references/canvas-formats.md` |
 | Image layout specification | `references/image-layout-spec.md` |
 | SVG image embedding | `references/svg-image-embedding.md` |
+| Skeleton review and feedback loop | `references/review-loop.md` |
 | Single-file HTML Presentation | `references/html-presentation.md` |
 | Native editable rebuild | `references/native-editable.md` |
 | Legacy direct export | `references/legacy-export.md` |
@@ -479,8 +465,7 @@ Before switching roles, you **MUST first read** the corresponding reference file
 
 ## Notes
 
-- Default draft review surface: `python3 ${SKILL_DIR}/scripts/build_preview_html.py <project_path> --source output`; its desktop/tablet outline is independently scrollable and automatically follows the active slide, while the center SVG canvas always scales to remain fully visible without internal scrolling
-- `preview/index.html` opened via `file://` is the default review path; keep comments in the browser, use copy-all, then paste the review back to Codex
+- Default draft review surface: `preview/index.html`; follow `references/review-loop.md` for packaging, interaction, browser QA, comment reset, and post-final feedback.
 - Standard handoff docs: `python3 ${SKILL_DIR}/scripts/generate_skeleton_docs.py <project_path> --overwrite`
 - Legacy direct export remains available, but it is no longer the default completion path
 - **Troubleshooting**: If the user encounters issues during generation (layout overflow, export errors, blank images, etc.), recommend checking `scripts/docs/troubleshooting.md` — it covers validation failures, preview/notes-split problems, and final-deck quality issues
