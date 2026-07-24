@@ -4,6 +4,7 @@
 from pathlib import Path
 import subprocess
 import sys
+import tempfile
 import unittest
 
 from bs4 import BeautifulSoup
@@ -13,10 +14,27 @@ SCRIPT_DIR = Path(__file__).resolve().parent
 if str(SCRIPT_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPT_DIR))
 
-from build_preview_html import build_html  # noqa: E402
+from build_preview_html import build_html, parse_svg_canvas_size  # noqa: E402
 
 
 class BuildPreviewHtmlTests(unittest.TestCase):
+    def test_parse_svg_canvas_size_uses_dimensions_or_view_box(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            temp_path = Path(temp_dir)
+            sized_svg = temp_path / "sized.svg"
+            sized_svg.write_text(
+                '<svg xmlns="http://www.w3.org/2000/svg" width="1600px" height="900"></svg>',
+                encoding="utf-8",
+            )
+            view_box_svg = temp_path / "view-box.svg"
+            view_box_svg.write_text(
+                '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 768"></svg>',
+                encoding="utf-8",
+            )
+
+            self.assertEqual(parse_svg_canvas_size(sized_svg), (1600.0, 900.0))
+            self.assertEqual(parse_svg_canvas_size(view_box_svg), (1024.0, 768.0))
+
     def test_static_file_preview_supports_copy_review(self) -> None:
         html = build_html(
             title="Demo",
@@ -93,6 +111,15 @@ class BuildPreviewHtmlTests(unittest.TestCase):
         self.assertIn("function syncOutlineToCurrentSlide()", html)
         self.assertIn("outline.scrollTop = targetScrollTop;", html)
         self.assertIn("syncOutlineToCurrentSlide();", html)
+        self.assertIn("height: 100dvh;", html)
+        self.assertIn("grid-template-rows: auto minmax(0, 1fr);", html)
+        self.assertIn('class="slide-stage"', html)
+        self.assertIn('scrolling="no"', html)
+        self.assertIn('tabindex="-1"', html)
+        self.assertIn("pointer-events: none;", html)
+        self.assertIn("function fitViewerToShell(entry = entries[current])", html)
+        self.assertIn("Math.min(availableWidth / canvasWidth, availableHeight / canvasHeight)", html)
+        self.assertIn("new ResizeObserver(() => fitViewerToShell()).observe(viewerShell);", html)
         summary_index = html.index('<section class="summary-card">')
         viewer_index = html.index('<div class="viewer-shell">')
         navigation_index = html.index('<nav class="slide-navigation"')

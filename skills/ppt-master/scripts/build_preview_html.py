@@ -77,6 +77,14 @@ STRINGS = {
 }
 
 
+SVG_TAG_RE = re.compile(r"<svg\b(?P<attrs>[^>]*)>", re.IGNORECASE | re.DOTALL)
+SVG_ATTR_RE = re.compile(
+    r"""(?P<name>[\w:-]+)\s*=\s*(?P<quote>["'])(?P<value>.*?)(?P=quote)""",
+    re.DOTALL,
+)
+SVG_LENGTH_RE = re.compile(r"^\s*(?P<value>\d+(?:\.\d+)?)")
+
+
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description="Build an HTML review viewer for a ppt-master project.",
@@ -115,6 +123,47 @@ def safe_json(data: object) -> str:
     return json.dumps(data, ensure_ascii=False).replace("</", "<\\/")
 
 
+def parse_svg_canvas_size(svg_file: Path) -> tuple[float, float]:
+    """Read the intrinsic SVG canvas without parsing the full document."""
+
+    header = svg_file.read_text(encoding="utf-8")[:8192]
+    match = SVG_TAG_RE.search(header)
+    if not match:
+        return 1280.0, 720.0
+
+    attrs = {
+        attr_match.group("name").lower(): attr_match.group("value")
+        for attr_match in SVG_ATTR_RE.finditer(match.group("attrs"))
+    }
+
+    def numeric_length(value: str | None) -> float | None:
+        if not value:
+            return None
+        length_match = SVG_LENGTH_RE.match(value)
+        if not length_match:
+            return None
+        parsed = float(length_match.group("value"))
+        return parsed if parsed > 0 else None
+
+    width = numeric_length(attrs.get("width"))
+    height = numeric_length(attrs.get("height"))
+    if width and height:
+        return width, height
+
+    view_box = attrs.get("viewbox", "").replace(",", " ").split()
+    if len(view_box) == 4:
+        try:
+            view_box_width = float(view_box[2])
+            view_box_height = float(view_box[3])
+        except ValueError:
+            pass
+        else:
+            if view_box_width > 0 and view_box_height > 0:
+                return view_box_width, view_box_height
+
+    return 1280.0, 720.0
+
+
 def build_entries(project_path: Path, output_path: Path, source_dir_name: str) -> tuple[list[dict], str, str]:
     source_dir = project_path / source_dir_name
     svg_files = sorted(source_dir.glob("*.svg"), key=slide_sort_key)
@@ -132,6 +181,7 @@ def build_entries(project_path: Path, output_path: Path, source_dir_name: str) -
     entries: list[dict] = []
     for svg_file in svg_files:
         key = slide_key(svg_file.stem)
+        canvas_width, canvas_height = parse_svg_canvas_size(svg_file)
         slide_spec = slide_by_key.get(key, {})
         slide_content = content_by_key.get(key, {})
         notes = notes_map.get(key, {})
@@ -143,6 +193,8 @@ def build_entries(project_path: Path, output_path: Path, source_dir_name: str) -
                 "key": key,
                 "number": key,
                 "href": href,
+                "canvas_width": canvas_width,
+                "canvas_height": canvas_height,
                 "label": title,
                 "title": title,
                 "takeaway": takeaway,
@@ -178,6 +230,8 @@ def build_html(
     entries_json = safe_json(entries)
     strings_json = safe_json(strings)
     first_src = html.escape(entries[0]["href"]) if entries else ""
+    first_width = entries[0].get("canvas_width", 1280) if entries else 1280
+    first_height = entries[0].get("canvas_height", 720) if entries else 720
     first_title = html.escape(entries[0]["title"]) if entries else "No slides"
 
     return f"""<!doctype html>
@@ -202,6 +256,7 @@ def build_html(
     * {{ box-sizing: border-box; }}
     body {{
       margin: 0;
+      min-height: 100%;
       font-family: "Inter", "Segoe UI", "PingFang SC", sans-serif;
       background: radial-gradient(circle at top, #faf6f2 0%, var(--bg) 58%);
       color: var(--text);
@@ -209,7 +264,10 @@ def build_html(
     .app {{
       display: grid;
       grid-template-columns: 300px minmax(0, 1fr) 380px;
-      min-height: 100vh;
+      height: 100vh;
+      height: 100dvh;
+      min-height: 0;
+      overflow: hidden;
     }}
     .sidebar, .inspector {{
       background: linear-gradient(180deg, #fbf8f5 0%, #f1e8df 100%);
@@ -220,6 +278,7 @@ def build_html(
       top: 0;
       align-self: start;
       height: 100vh;
+      height: 100dvh;
       min-height: 0;
       display: flex;
       flex-direction: column;
@@ -227,6 +286,9 @@ def build_html(
       border-right: 1px solid var(--line);
     }}
     .inspector {{
+      height: 100vh;
+      height: 100dvh;
+      min-height: 0;
       overflow: auto;
       border-left: 1px solid var(--line);
     }}
@@ -331,9 +393,13 @@ def build_html(
     .main {{
       padding: 24px;
       display: grid;
-      grid-template-rows: auto 1fr;
+      grid-template-rows: auto minmax(0, 1fr);
       gap: 16px;
+      height: 100vh;
+      height: 100dvh;
       min-width: 0;
+      min-height: 0;
+      overflow: hidden;
     }}
     .summary-card, .panel {{
       background: var(--panel);
@@ -389,6 +455,7 @@ def build_html(
       color: var(--muted);
     }}
     .viewer-shell {{
+      position: relative;
       background: radial-gradient(circle at top, #ffffff 0%, #ede4db 100%);
       border: 1px solid var(--line);
       border-radius: 24px;
@@ -396,13 +463,24 @@ def build_html(
       min-height: 0;
       overflow: hidden;
     }}
-    iframe {{
+    .slide-stage {{
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      width: 1280px;
+      height: 720px;
+      transform: translate(-50%, -50%) scale(1);
+      transform-origin: center center;
+    }}
+    #viewer {{
       width: 100%;
-      height: calc(100vh - 260px);
+      height: 100%;
+      display: block;
       border: 0;
       border-radius: 18px;
       background: #fff;
       box-shadow: 0 30px 70px rgba(43, 34, 29, 0.14);
+      pointer-events: none;
     }}
     .panel {{
       padding: 16px;
@@ -481,14 +559,18 @@ def build_html(
     @media (max-width: 1380px) {{
       .app {{
         grid-template-columns: 280px minmax(0, 1fr);
+        height: auto;
+        min-height: 100vh;
+        min-height: 100dvh;
+        overflow: visible;
       }}
       .inspector {{
         grid-column: 1 / -1;
+        height: auto;
+        min-height: auto;
+        overflow: visible;
         border-left: 0;
         border-top: 1px solid var(--line);
-      }}
-      iframe {{
-        height: 70vh;
       }}
     }}
     @media (max-width: 960px) {{
@@ -539,7 +621,21 @@ def build_html(
         </nav>
       </section>
       <div class="viewer-shell">
-        <iframe id="viewer" title="Draft slide preview" src="{first_src}"></iframe>
+        <div
+          class="slide-stage"
+          id="slideStage"
+          style="width: {first_width}px; height: {first_height}px;"
+        >
+          <iframe
+            id="viewer"
+            title="Draft slide preview"
+            src="{first_src}"
+            width="{first_width}"
+            height="{first_height}"
+            scrolling="no"
+            tabindex="-1"
+          ></iframe>
+        </div>
       </div>
     </main>
     <aside class="inspector">
@@ -571,6 +667,8 @@ def build_html(
     const storagePrefix = `ppt-master-preview-comments::${{projectKey}}::`;
     const storageKey = `${{storagePrefix}}${{reviewBuildId}}`;
     const viewer = document.getElementById('viewer');
+    const viewerShell = document.querySelector('.viewer-shell');
+    const slideStage = document.getElementById('slideStage');
     const summaryTitle = document.getElementById('summaryTitle');
     const summaryTakeaway = document.getElementById('summaryTakeaway');
     const notesScript = document.getElementById('notesScript');
@@ -762,6 +860,26 @@ def build_html(
       outline.scrollTop = targetScrollTop;
     }}
 
+    function fitViewerToShell(entry = entries[current]) {{
+      if (!entry || !viewerShell || !slideStage) return;
+      const canvasWidth = Number(entry.canvas_width) || 1280;
+      const canvasHeight = Number(entry.canvas_height) || 720;
+      slideStage.style.width = `${{canvasWidth}}px`;
+      slideStage.style.height = `${{canvasHeight}}px`;
+      viewer.width = String(canvasWidth);
+      viewer.height = String(canvasHeight);
+
+      const shellStyle = window.getComputedStyle(viewerShell);
+      const horizontalPadding =
+        parseFloat(shellStyle.paddingLeft || '0') + parseFloat(shellStyle.paddingRight || '0');
+      const verticalPadding =
+        parseFloat(shellStyle.paddingTop || '0') + parseFloat(shellStyle.paddingBottom || '0');
+      const availableWidth = Math.max(1, viewerShell.clientWidth - horizontalPadding);
+      const availableHeight = Math.max(1, viewerShell.clientHeight - verticalPadding);
+      const scale = Math.min(availableWidth / canvasWidth, availableHeight / canvasHeight);
+      slideStage.style.transform = `translate(-50%, -50%) scale(${{scale}})`;
+    }}
+
     function selectSlide(index) {{
       if (!entries.length) return;
       current = (index + entries.length) % entries.length;
@@ -771,6 +889,7 @@ def build_html(
       syncOutlineToCurrentSlide();
       const entry = entries[current];
       viewer.src = entry.href;
+      fitViewerToShell(entry);
       summaryTitle.textContent = entry.title;
       summaryTakeaway.textContent = entry.takeaway || strings.no_takeaway;
       renderNotes(entry);
@@ -794,6 +913,11 @@ def build_html(
     document.getElementById('copyAllCommentsBtn').addEventListener('click', copyAllComments);
     document.getElementById('prevBtn').addEventListener('click', () => selectSlide(current - 1));
     document.getElementById('nextBtn').addEventListener('click', () => selectSlide(current + 1));
+    if ('ResizeObserver' in window) {{
+      new ResizeObserver(() => fitViewerToShell()).observe(viewerShell);
+    }} else {{
+      window.addEventListener('resize', () => fitViewerToShell());
+    }}
     window.addEventListener('keydown', (event) => {{
       if (isEditingElement(document.activeElement)) return;
       if (event.key === 'ArrowLeft') selectSlide(current - 1);

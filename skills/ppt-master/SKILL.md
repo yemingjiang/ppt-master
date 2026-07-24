@@ -349,6 +349,7 @@ Read references/executor-consultant-top.md # Top consulting style (MBB level)
   - Static `file://` preview is the default review flow. It saves comments locally in the browser and should expose "复制全部批注" so the user can paste the review back to Codex without any web server.
   - In `preview/index.html`, render the Previous/Next controls on the right side of the top current-slide takeaway card. Do not render a separate toolbar containing the current-slide title or review-scope guidance, and do not render navigation below or over the slide viewer.
   - On desktop and tablet layouts, the left outline list must scroll independently while its header remains visible. Whenever the active slide changes through outline clicks, navigation buttons, keyboard navigation, or the initial URL hash, the active outline item must automatically move into the outline viewport without scrolling the main document.
+  - The center slide viewer must always fit the complete SVG canvas into its currently available area. Read each SVG's intrinsic canvas dimensions, preserve its aspect ratio, and scale the fixed canvas with `contain` behavior whenever the viewer or window size changes. Never require horizontal or vertical scrolling inside the slide viewer, and never crop slide content merely because the browser window or three-column review layout is smaller than the source canvas.
   - After Codex applies pasted review comments and rebuilds `preview/index.html`, treat the new file as a fresh review round. Old local comments should not be carried into the new build.
 - Only generate `preview/draft.pdf` when the user explicitly asks for PDF review
 
@@ -477,7 +478,7 @@ Before switching roles, you **MUST first read** the corresponding reference file
 
 ## Notes
 
-- Default draft review surface: `python3 ${SKILL_DIR}/scripts/build_preview_html.py <project_path> --source output`; its desktop/tablet outline is independently scrollable and automatically follows the active slide
+- Default draft review surface: `python3 ${SKILL_DIR}/scripts/build_preview_html.py <project_path> --source output`; its desktop/tablet outline is independently scrollable and automatically follows the active slide, while the center SVG canvas always scales to remain fully visible without internal scrolling
 - `preview/index.html` opened via `file://` is the default review path; keep comments in the browser, use copy-all, then paste the review back to Codex
 - Standard handoff docs: `python3 ${SKILL_DIR}/scripts/generate_skeleton_docs.py <project_path> --overwrite`
 - Legacy direct export remains available, but it is no longer the default completion path
