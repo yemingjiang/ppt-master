@@ -480,7 +480,7 @@ def build_html(
       border-radius: 18px;
       background: #fff;
       box-shadow: 0 30px 70px rgba(43, 34, 29, 0.14);
-      pointer-events: none;
+      pointer-events: auto;
     }}
     .panel {{
       padding: 16px;
@@ -838,6 +838,32 @@ def build_html(
       );
     }}
 
+    function handleNavigationKeydown(event) {{
+      if (isEditingElement(event.target)) return;
+      if (event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return;
+      const selection = event.view && event.view.getSelection ? event.view.getSelection() : null;
+      if (selection && !selection.isCollapsed) return;
+      if (event.key === 'ArrowLeft') {{
+        event.preventDefault();
+        selectSlide(current - 1);
+      }}
+      if (event.key === 'ArrowRight') {{
+        event.preventDefault();
+        selectSlide(current + 1);
+      }}
+    }}
+
+    function bindViewerKeyboardNavigation() {{
+      try {{
+        const viewerDocument = viewer.contentDocument;
+        if (!viewerDocument) return;
+        viewerDocument.removeEventListener('keydown', handleNavigationKeydown);
+        viewerDocument.addEventListener('keydown', handleNavigationKeydown);
+      }} catch (_error) {{
+        // Text selection and copy still work when file:// isolation blocks frame access.
+      }}
+    }}
+
     function syncOutlineToCurrentSlide() {{
       const activeLink = links[current];
       if (!outline || !activeLink || outline.scrollHeight <= outline.clientHeight) return;
@@ -913,16 +939,13 @@ def build_html(
     document.getElementById('copyAllCommentsBtn').addEventListener('click', copyAllComments);
     document.getElementById('prevBtn').addEventListener('click', () => selectSlide(current - 1));
     document.getElementById('nextBtn').addEventListener('click', () => selectSlide(current + 1));
+    viewer.addEventListener('load', bindViewerKeyboardNavigation);
     if ('ResizeObserver' in window) {{
       new ResizeObserver(() => fitViewerToShell()).observe(viewerShell);
     }} else {{
       window.addEventListener('resize', () => fitViewerToShell());
     }}
-    window.addEventListener('keydown', (event) => {{
-      if (isEditingElement(document.activeElement)) return;
-      if (event.key === 'ArrowLeft') selectSlide(current - 1);
-      if (event.key === 'ArrowRight') selectSlide(current + 1);
-    }});
+    window.addEventListener('keydown', handleNavigationKeydown);
 
     updateCommentDots();
     selectSlide(initialIndexFromHash());
