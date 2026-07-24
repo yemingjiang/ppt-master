@@ -867,7 +867,8 @@ def _build_warnings(document_bytes: int, packager: OfflineResourcePackager) -> l
         if str(asset["extension"]) == ".gif" and asset_bytes > _LARGE_GIF_WARNING_BYTES:
             warnings.append(
                 f"Large GIF ({asset_bytes} bytes): {asset_path}. "
-                "Consider MP4/WebM or animated WebP for the final HTML; do not transcode automatically."
+                "Run optimize_single_html_media.py to inspect the presentation-sized MP4 recommendation; "
+                "do not transcode automatically."
             )
     return warnings
 

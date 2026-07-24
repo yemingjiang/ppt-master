@@ -34,6 +34,7 @@ Match `data-slide-id` to the manifest ID. Do not add a document wrapper, a secon
 - The current main agent MUST author final slide fragments sequentially, one slide at a time, in one continuous pass. Do not delegate final slide authoring or create grouped slide batches.
 - `prepare_single_html.py` may deterministically scaffold all approved SVGs at once. This mechanical initialization is not creative page authoring. It prefixes SVG IDs, rebases local resources, wraps each page in `.pm-slide`, and prepares the manifest/CSS; review and refine the resulting fragments sequentially.
 - Use only project-local resources. The builder embeds them for offline delivery; do not use remote URLs, `file:` URLs, or browser-only dependencies.
+- For final-HTML media optimization, the dedicated optimizer may replace an SVG `<image>` GIF placement with a same-position `<foreignObject><video>` inside the final slide fragment. This exception is limited to `html_output/slides/`; never introduce `foreignObject` into review SVGs or PPTX-oriented sources.
 - Use an `iframe` only for intentionally isolated, self-contained embedded content. Keep its source project-local; the builder inlines it and rejects recursive or remote iframe content. Do not use iframe isolation to bypass the slide-root or offline-resource contracts.
 - Let the packaged runtime provide PowerPoint-like presentation input, progress, fullscreen, and speaker-notes controls. Do not replace or remove those hooks.
 - Treat the presentation input matrix as mandatory:
@@ -44,6 +45,33 @@ Match `data-slide-id` to the manifest ID. Do not add a document wrapper, a secon
 - Write speaker notes in `notes/total.md` with headings that match each `notes_key` or slide ID. Heading normalization accepts forms such as `# 01 Cover` as key `01`. The final runtime exposes notes through its notes control; do not place the script visibly on slides.
 - Use `#slide=<id>` as the canonical shareable URL hash. The runtime also accepts the legacy raw form `#<id>` and normalizes it.
 
+## Large GIF analysis and optimization
+
+Analyze large GIFs after final slide authoring and before packaging:
+
+```bash
+python3 ${SKILL_DIR}/scripts/optimize_single_html_media.py <project_path> --json
+```
+
+The default target is a 1920×1080 projector/display. The analyzer converts each SVG placement into real display pixels, accounts for `viewBox` and `preserveAspectRatio`, adds presentation headroom, and recommends a source-aspect-preserving MP4 size. It analyzes GIFs of at least 8 MiB by default; pass `--min-bytes 0` to include every GIF.
+
+Only when the user requests or approves media optimization, apply the recommendation:
+
+```bash
+python3 ${SKILL_DIR}/scripts/optimize_single_html_media.py <project_path> --apply --json
+```
+
+`--apply` requires `ffmpeg`. It writes H.264 MP4 derivatives under `html_output/media_optimized/`, keeps original GIFs and source SVGs unchanged, and rewrites matching final HTML placements as muted, looping, inline autoplay videos. Derivative names include a source-content fingerprint, so unchanged media is reused while changed GIF content is retranscoded. A derivative that is not smaller than its GIF is not substituted.
+
+Use `--target 4k` only when the user explicitly asks for a 4K presentation:
+
+```bash
+python3 ${SKILL_DIR}/scripts/optimize_single_html_media.py <project_path> --target 4k --json
+python3 ${SKILL_DIR}/scripts/optimize_single_html_media.py <project_path> --target 4k --apply --json
+```
+
+Do not infer a 4K delivery target from a 4K or oversized source GIF. If `prepare_single_html.py --force` later refreshes the slide fragments, rerun the optimizer because the refresh deliberately restores the SVG-authored GIF placements.
+
 ## Package and validate
 
 Use the deterministic initializer for a new final-HTML source tree, or for an intentional refresh:
@@ -52,6 +80,7 @@ Use the deterministic initializer for a new final-HTML source tree, or for an in
 python3 ${SKILL_DIR}/scripts/prepare_single_html.py <project_path> --dry-run --json
 python3 ${SKILL_DIR}/scripts/prepare_single_html.py <project_path>
 # Use --force only when deliberately refreshing generated files.
+python3 ${SKILL_DIR}/scripts/optimize_single_html_media.py <project_path> --json
 ```
 
 Preflight, package, and run real-browser QA:
@@ -64,7 +93,7 @@ python3 ${SKILL_DIR}/scripts/qa_single_html.py <project_path> --screenshots <qa_
 
 Deliver `<project_path>/exports/<project_name>.single.html`. `preview/index.html` is not the final HTML; it remains the review-only skeleton preview.
 
-The builder reports unique asset count, reference count, source bytes, embedded payload bytes, largest assets, and advisory size warnings. A final file over 50 MB, an individual asset over 10 MB, or a GIF over 8 MB should trigger review. Prefer manually prepared MP4/WebM/animated WebP when appropriate; the builder never transcodes source media automatically.
+The builder reports unique asset count, reference count, source bytes, embedded payload bytes, largest assets, and advisory size warnings. A final file over 50 MB, an individual asset over 10 MB, or a GIF over 8 MB should trigger review. The builder itself never transcodes source media; use the dedicated optimizer after user approval.
 
 Before delivery:
 
@@ -72,6 +101,7 @@ Before delivery:
 - every slide navigates by controls, the complete keyboard / presentation-remote matrix, click on visible slide content, mouse wheel / trackpad, mouse drag, touch swipe, and URL hash;
 - one physical-looking advance action causes exactly one slide change, including drag/swipe gestures that may synthesize a click;
 - fullscreen, progress, and speaker-notes controls work;
+- optimized autoplay videos visibly render, advance in time, loop, stay muted, and pause when their slide becomes inactive;
 - slide sequence, notes, titles, audience-facing copy, theme, fonts, and assets match the confirmed design;
 - iframe content, if any, is visible and isolated without remote dependencies; and
 - the artifact exists at `exports/<project_name>.single.html` and is the one selected final target.

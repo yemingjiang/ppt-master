@@ -1178,6 +1178,7 @@ class BuildSingleHtmlTests(ProjectFixture):
 
         self.assertTrue(any("Large embedded asset" in item for item in result["warnings"]))
         self.assertTrue(any("do not transcode automatically" in item for item in result["warnings"]))
+        self.assertTrue(any("optimize_single_html_media.py" in item for item in result["warnings"]))
         gif_entry = next(
             item
             for item in result["media"]["largest_assets"]

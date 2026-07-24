@@ -58,13 +58,16 @@ Final offline HTML presentation:
 ```bash
 python3 scripts/prepare_single_html.py <project_path> --dry-run --json
 python3 scripts/prepare_single_html.py <project_path>
+python3 scripts/optimize_single_html_media.py <project_path> --json
+# Only after the user requests/approves optimization:
+python3 scripts/optimize_single_html_media.py <project_path> --apply --json
 python3 scripts/build_single_html.py <project_path> --check --json
 python3 scripts/build_single_html.py <project_path>
 python3 scripts/qa_single_html.py <project_path> --screenshots <qa_dir> --json
 # Output: <project_path>/exports/<project_name>.single.html
 ```
 
-Before authoring `html_output/`, read `../references/html-presentation.md`. The initializer creates deterministic sources from approved SVGs; `--force` is required to refresh existing generated files. The builder packages the manifest, slide fragments, notes, and project-local resources into the offline artifact. Its size warnings are advisory and it never transcodes media. The QA command runs the input matrix in a real browser and can produce screenshots/contact sheets for required visual inspection.
+Before authoring `html_output/`, read `../references/html-presentation.md`. The initializer creates deterministic sources from approved SVGs; `--force` is required to refresh existing generated files. The media optimizer analyzes GIFs of at least 8 MiB against a 1080p presentation target by default. Use `--apply` only after the user requests or approves optimization, and use `--target 4k` only for an explicit 4K requirement. Original GIFs and source SVGs remain unchanged. The builder packages the manifest, slide fragments, notes, and project-local resources into the offline artifact. Its size warnings are advisory and it never transcodes media by itself. The QA command runs the input matrix, including autoplay media, in a real browser and can produce screenshots/contact sheets for required visual inspection.
 
 Legacy direct export from `ppt-master` (explicit request only):
 
@@ -84,7 +87,7 @@ python3 scripts/update_repo.py
 | Project management | `project_manager.py`, `batch_validate.py`, `generate_examples_index.py`, `error_helper.py`, `pptx_template_import.py`, `clean_pptx_placeholders.py` | [docs/project.md](./docs/project.md) |
 | Skeleton docs | `generate_skeleton_docs.py` | this README |
 | Draft preview | `build_preview_html.py` | this README |
-| Final offline HTML | `prepare_single_html.py`, `build_single_html.py`, `qa_single_html.py`, `qa_single_html.cjs` | [../references/html-presentation.md](../references/html-presentation.md) |
+| Final offline HTML | `prepare_single_html.py`, `optimize_single_html_media.py`, `build_single_html.py`, `qa_single_html.py`, `qa_single_html.cjs` | [../references/html-presentation.md](../references/html-presentation.md) |
 | SVG pipeline / legacy export | `finalize_svg.py`, `svg_to_pptx.py`, `total_md_split.py`, `svg_quality_checker.py` | [docs/svg-pipeline.md](./docs/svg-pipeline.md) |
 | Image tools | `image_gen.py` (local fallback), `analyze_images.py`, `gemini_watermark_remover.py` | [docs/image.md](./docs/image.md) |
 | Repo maintenance | `update_repo.py` | README install/update section |
@@ -121,6 +124,7 @@ Final offline HTML:
 ```bash
 python3 scripts/prepare_single_html.py <project_path> --dry-run --json
 python3 scripts/prepare_single_html.py <project_path>
+python3 scripts/optimize_single_html_media.py <project_path> --json
 python3 scripts/build_single_html.py <project_path> --check --json
 python3 scripts/build_single_html.py <project_path>
 python3 scripts/qa_single_html.py <project_path> --screenshots <qa_dir> --json

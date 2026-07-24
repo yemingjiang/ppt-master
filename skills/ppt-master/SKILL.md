@@ -110,6 +110,7 @@ description: Use when asked to create a presentation outline, review draft, fina
 | `${SKILL_DIR}/scripts/generate_skeleton_docs.py` | Generate standard `main_content.md`, `style_sheet.md`, and `asset_manifest.md` |
 | `${SKILL_DIR}/scripts/build_preview_html.py` | Build lightweight HTML review draft from `svg_output/` or `svg_final/` |
 | `${SKILL_DIR}/scripts/prepare_single_html.py` | Deterministically scaffold final HTML sources from approved SVGs |
+| `${SKILL_DIR}/scripts/optimize_single_html_media.py` | Analyze large GIF placements and optionally replace final-HTML copies with presentation-sized MP4 loops |
 | `${SKILL_DIR}/scripts/build_single_html.py` | Package `html_output/` as a final offline single-file HTML presentation |
 | `${SKILL_DIR}/scripts/qa_single_html.py` | Browser-QA a packaged HTML presentation and optionally capture screenshots |
 | `${SKILL_DIR}/scripts/svg_quality_checker.py` | SVG quality check |
@@ -416,12 +417,17 @@ Author `html_output/` sequentially with the current main agent, then package and
 python3 ${SKILL_DIR}/scripts/prepare_single_html.py <project_path> --dry-run --json
 # On first scaffold, or for an intentional refresh:
 python3 ${SKILL_DIR}/scripts/prepare_single_html.py <project_path> [--force]
+python3 ${SKILL_DIR}/scripts/optimize_single_html_media.py <project_path> --json
+# Only after the user requests/approves media optimization:
+python3 ${SKILL_DIR}/scripts/optimize_single_html_media.py <project_path> --apply --json
 python3 ${SKILL_DIR}/scripts/build_single_html.py <project_path> --check --json
 python3 ${SKILL_DIR}/scripts/build_single_html.py <project_path>
 python3 ${SKILL_DIR}/scripts/qa_single_html.py <project_path> --screenshots <qa_dir> --json
 ```
 
 Use `prepare_single_html.py` only as deterministic scaffolding; preserve deliberate HTML edits unless an intentional `--force` refresh is required. Inspect the QA contact sheets and test the complete input matrix in `references/html-presentation.md`.
+
+Always analyze large GIFs before packaging. The media optimizer defaults to a 1920×1080 presentation target and ignores GIFs below 8 MiB; use `--min-bytes 0` only when every GIF should be reviewed. Run `--apply` only after the user requests or approves optimization. It keeps the original GIF and source SVG unchanged, writes derived H.264 MP4 files under `html_output/media_optimized/`, and rewrites only the final HTML slide fragments. Add `--target 4k` only when the user explicitly requires 4K presentation; never infer 4K from source-media resolution.
 
 Deliver `<project_path>/exports/<project_name>.single.html`. `preview/index.html` is not the final HTML.
 

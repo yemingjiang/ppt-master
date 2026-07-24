@@ -238,6 +238,43 @@ async function run() {
     checks.namedHash = true;
     checks.hash = true;
 
+    const autoplayVideo = page.locator(".pm-slide video[autoplay]").first();
+    if (await autoplayVideo.count()) {
+      const mediaSlideId = await autoplayVideo.evaluate(
+        (element) => element.closest(".pm-slide")?.dataset.slideId || ""
+      );
+      if (!mediaSlideId) throw new Error("autoplay video is not inside a slide");
+      await page.goto(`${presentationUrl}#slide=${encodeURIComponent(mediaSlideId)}`, {
+        waitUntil: "load",
+      });
+      await expectSlide(mediaSlideId, "autoplay media slide");
+      const activeVideo = page.locator(".pm-slide.pm-active video[autoplay]").first();
+      const mediaContract = await activeVideo.evaluate((video) => ({
+        autoplay: video.autoplay,
+        muted: video.muted,
+        loop: video.loop,
+        playsInline: video.playsInline,
+      }));
+      if (
+        !mediaContract.autoplay
+        || !mediaContract.muted
+        || !mediaContract.loop
+        || !mediaContract.playsInline
+      ) {
+        throw new Error("optimized autoplay video is missing muted/loop/playsinline");
+      }
+      await page.waitForFunction(() => {
+        const video = document.querySelector(".pm-slide.pm-active video[autoplay]");
+        return video && video.readyState >= 2 && !video.paused;
+      });
+      const initialTime = await activeVideo.evaluate((video) => video.currentTime);
+      await page.waitForFunction((before) => {
+        const video = document.querySelector(".pm-slide.pm-active video[autoplay]");
+        return video && Math.abs(video.currentTime - before) > 0.05;
+      }, initialTime);
+    }
+    checks.mediaPlayback = true;
+
     await blur();
     await page.keyboard.press("f");
     await page.waitForTimeout(100);
