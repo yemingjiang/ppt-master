@@ -46,13 +46,14 @@ class OptimizeSingleHtmlMediaTests(unittest.TestCase):
         self.gif_path.write_bytes(GIF_1X1)
         self.source_sha1 = hashlib.sha1(GIF_1X1).hexdigest()
 
-        slide = self.project / "html_output" / "slides" / "01_demo.svg"
+        slide = self.project / "html_output" / "slides" / "01_demo.html"
         slide.write_text(
             (
-                '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 720">'
+                '<section class="pm-slide" data-slide-id="01">'
+                '<svg xmlns="http://www.w3.org/2000/svg" class="pm-artwork" viewBox="0 0 1280 720">'
                 '<image xlink:href="../../images/demo.gif" x="100" y="120" width="256" height="144" '
                 'preserveAspectRatio="xMidYMid meet" />'
-                "</svg>"
+                "</svg></section>"
             ),
             encoding="utf-8",
         )
@@ -132,11 +133,13 @@ class OptimizeSingleHtmlMediaTests(unittest.TestCase):
         self.assertEqual(asset["rewritten_placements"], 1)
         self.assertEqual(output_path.read_bytes(), b"existing mp4")
         rewritten_slide = (
-            self.project / "html_output" / "slides" / "01_demo.svg"
+            self.project / "html_output" / "slides" / "01_demo.html"
         ).read_text(encoding="utf-8")
         self.assertNotIn("<image", rewritten_slide)
-        self.assertIn("<foreignObject", rewritten_slide)
+        self.assertNotIn("<foreignObject", rewritten_slide)
         self.assertIn("<video", rewritten_slide)
+        self.assertIn('class="pm-optimized-video pm-media-overlay"', rewritten_slide)
+        self.assertIn("left:7.8125%;top:16.66666667%", rewritten_slide)
         self.assertIn('data-pm-target="1080p"', rewritten_slide)
         self.assertIn("../media_optimized/", rewritten_slide)
         self.assertEqual(self.gif_path.read_bytes(), GIF_1X1)
@@ -168,6 +171,49 @@ class OptimizeSingleHtmlMediaTests(unittest.TestCase):
         command = run_mock.call_args.args[0]
         self.assertEqual(command[command.index("-crf") + 1], "23")
         self.assertTrue((self.project / asset["planned_output_relpath"]).exists())
+
+    def test_apply_migrates_existing_foreignobject_video_to_html_overlay(self) -> None:
+        optimized_relpath = (
+            Path("html_output")
+            / "media_optimized"
+            / _build_output_name(
+                "images/demo.gif", "1080p", 640, 360, self.source_sha1
+            )
+        )
+        output_path = self.project / optimized_relpath
+        output_path.parent.mkdir(parents=True)
+        output_path.write_bytes(b"existing mp4")
+        slide_path = self.project / "html_output" / "slides" / "01_demo.html"
+        slide_path.write_text(
+            (
+                '<section class="pm-slide" data-slide-id="01">'
+                '<svg xmlns="http://www.w3.org/2000/svg" class="pm-artwork" '
+                'viewBox="0 0 1280 720">'
+                '<foreignObject x="100" y="120" width="256" height="144">'
+                '<video xmlns="http://www.w3.org/1999/xhtml" '
+                'data-pm-source-gif="../../images/demo.gif" '
+                'data-pm-placement-id="legacy-placement" '
+                'data-pm-preserve-aspect-ratio="xMidYMid meet" '
+                'data-pm-target="1080p" src="../media_optimized/old.mp4"></video>'
+                "</foreignObject></svg></section>"
+            ),
+            encoding="utf-8",
+        )
+
+        with patch("optimize_single_html_media.read_gif_metadata") as metadata:
+            metadata.return_value.width = 1920
+            metadata.return_value.height = 1080
+            metadata.return_value.frames = 60
+            metadata.return_value.duration_ms = 4000
+            metadata.return_value.file_size = 16_000_000
+            result = analyze_project(self.project, apply=True)
+
+        self.assertEqual(result["assets"][0]["rewritten_placements"], 1)
+        rewritten = slide_path.read_text(encoding="utf-8")
+        self.assertNotIn("<foreignObject", rewritten)
+        self.assertIn('class="pm-optimized-video pm-media-overlay"', rewritten)
+        self.assertIn('data-pm-placement-id="legacy-placement"', rewritten)
+        self.assertIn(output_path.name, rewritten)
 
     def test_reanalysis_can_upgrade_an_existing_video_to_4k(self) -> None:
         optimized_relpath = (
@@ -204,7 +250,7 @@ class OptimizeSingleHtmlMediaTests(unittest.TestCase):
         self.assertEqual(asset["recommendation"]["pixels"], {"width": 960, "height": 540})
         self.assertEqual(asset["rewritten_placements"], 1)
         rewritten_slide = (
-            self.project / "html_output" / "slides" / "01_demo.svg"
+            self.project / "html_output" / "slides" / "01_demo.html"
         ).read_text(encoding="utf-8")
         self.assertIn('data-pm-target="4k"', rewritten_slide)
         self.assertIn(target_4k_path.name, rewritten_slide)
@@ -227,7 +273,7 @@ class OptimizeSingleHtmlMediaTests(unittest.TestCase):
                     result = analyze_project(self.project, apply=True, min_bytes=0)
 
         self.assertEqual(result["assets"][0]["action"], "not_smaller")
-        slide = (self.project / "html_output" / "slides" / "01_demo.svg").read_text(
+        slide = (self.project / "html_output" / "slides" / "01_demo.html").read_text(
             encoding="utf-8"
         )
         self.assertIn("<image", slide)
@@ -256,22 +302,23 @@ class OptimizeSingleHtmlMediaTests(unittest.TestCase):
             first["assets"][0]["planned_output_relpath"],
             second["assets"][0]["planned_output_relpath"],
         )
-        slide = (self.project / "html_output" / "slides" / "01_demo.svg").read_text(
+        slide = (self.project / "html_output" / "slides" / "01_demo.html").read_text(
             encoding="utf-8"
         )
         self.assertIn(Path(second["assets"][0]["planned_output_relpath"]).name, slide)
         self.assertNotIn(Path(first["assets"][0]["planned_output_relpath"]).name, slide)
 
     def test_retarget_updates_every_duplicate_placement(self) -> None:
-        slide_path = self.project / "html_output" / "slides" / "01_demo.svg"
+        slide_path = self.project / "html_output" / "slides" / "01_demo.html"
         slide_path.write_text(
             (
-                '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 720">'
+                '<section class="pm-slide" data-slide-id="01">'
+                '<svg xmlns="http://www.w3.org/2000/svg" class="pm-artwork" viewBox="0 0 1280 720">'
                 '<image href="../../images/demo.gif" x="100" y="120" width="256" height="144" '
                 'preserveAspectRatio="xMidYMid meet" />'
                 '<image href="../../images/demo.gif" x="500" y="120" width="256" height="144" '
                 'preserveAspectRatio="xMidYMid meet" />'
-                "</svg>"
+                "</svg></section>"
             ),
             encoding="utf-8",
         )

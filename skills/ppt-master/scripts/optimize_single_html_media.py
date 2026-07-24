@@ -58,7 +58,7 @@ class GifMetadata:
 
 
 class SvgImageParser(HTMLParser):
-    """Collect <image> tags nested under <svg> tags from HTML or SVG content."""
+    """Collect SVG GIF placements and previously optimized HTML video overlays."""
 
     def __init__(self) -> None:
         super().__init__(convert_charrefs=True)
@@ -105,12 +105,41 @@ class SvgImageParser(HTMLParser):
                     "preserveaspectratio": normalized_attrs.get(
                         "data-pm-preserve-aspect-ratio", "xMidYMid meet"
                     ),
-                    "_source_kind": "video",
+                    "_source_kind": "foreignobject-video",
                     "_optimized_src": normalized_attrs.get("src", ""),
                     "_placement_id": normalized_attrs.get("data-pm-placement-id", ""),
                 }
             )
             self.records.append((dict(self._svg_stack[-1]), placement_attrs))
+            return
+        if (
+            normalized_tag == "video"
+            and not self._svg_stack
+            and normalized_attrs.get("data-pm-source-gif")
+            and normalized_attrs.get("data-pm-layout-box")
+            and normalized_attrs.get("data-pm-svg-viewbox")
+        ):
+            layout_box = normalized_attrs["data-pm-layout-box"].replace(",", " ").split()
+            if len(layout_box) != 4:
+                return
+            self.records.append(
+                (
+                    {"viewbox": normalized_attrs["data-pm-svg-viewbox"]},
+                    {
+                        "href": normalized_attrs["data-pm-source-gif"],
+                        "x": layout_box[0],
+                        "y": layout_box[1],
+                        "width": layout_box[2],
+                        "height": layout_box[3],
+                        "preserveaspectratio": normalized_attrs.get(
+                            "data-pm-preserve-aspect-ratio", "xMidYMid meet"
+                        ),
+                        "_source_kind": "overlay-video",
+                        "_optimized_src": normalized_attrs.get("src", ""),
+                        "_placement_id": normalized_attrs.get("data-pm-placement-id", ""),
+                    },
+                )
+            )
 
 
 def _parse_args() -> argparse.Namespace:
@@ -395,7 +424,11 @@ def _object_position(preserve_aspect_ratio: str) -> str:
     return f"{horizontal} {vertical}"
 
 
-def _video_foreign_object(
+def _format_percent(value: float) -> str:
+    return f"{value:.8f}".rstrip("0").rstrip(".")
+
+
+def _video_overlay(
     placement: dict[str, object],
     *,
     source_reference: str,
@@ -403,32 +436,54 @@ def _video_foreign_object(
     target: str,
 ) -> str:
     box = placement["layout_box_units"]
+    viewbox = placement["svg_viewbox"]
     preserve = str(placement["preserve_aspect_ratio"])
     fit_mode = str(placement["fit_mode"])
     object_fit = "fill" if fit_mode == "none" else "cover" if fit_mode == "slice" else "contain"
+    viewbox_width = float(viewbox["width"])
+    viewbox_height = float(viewbox["height"])
+    viewbox_min_x = float(viewbox.get("min_x", 0))
+    viewbox_min_y = float(viewbox.get("min_y", 0))
+    left = (float(box["x"]) - viewbox_min_x) / viewbox_width * 100
+    top = (float(box["y"]) - viewbox_min_y) / viewbox_height * 100
+    width = float(box["width"]) / viewbox_width * 100
+    height = float(box["height"]) / viewbox_height * 100
     escaped_source = html.escape(source_reference, quote=True)
     escaped_optimized = html.escape(optimized_reference, quote=True)
     escaped_preserve = html.escape(preserve, quote=True)
     escaped_placement_id = html.escape(str(placement["placement_id"]), quote=True)
+    layout_box = " ".join(
+        _format_svg_number(float(box[key])) for key in ("x", "y", "width", "height")
+    )
+    svg_viewbox = " ".join(
+        _format_svg_number(value)
+        for value in (viewbox_min_x, viewbox_min_y, viewbox_width, viewbox_height)
+    )
     return (
-        f'<foreignObject x="{_format_svg_number(float(box["x"]))}" '
-        f'y="{_format_svg_number(float(box["y"]))}" '
-        f'width="{_format_svg_number(float(box["width"]))}" '
-        f'height="{_format_svg_number(float(box["height"]))}">'
-        f'<video xmlns="http://www.w3.org/1999/xhtml" class="pm-optimized-video" '
+        f'<video class="pm-optimized-video pm-media-overlay" '
         f'data-pm-source-gif="{escaped_source}" '
         f'data-pm-placement-id="{escaped_placement_id}" '
         f'data-pm-preserve-aspect-ratio="{escaped_preserve}" '
+        f'data-pm-layout-box="{html.escape(layout_box, quote=True)}" '
+        f'data-pm-svg-viewbox="{html.escape(svg_viewbox, quote=True)}" '
         f'data-pm-target="{html.escape(target, quote=True)}" '
         f'src="{escaped_optimized}" autoplay muted loop playsinline preload="auto" '
-        f'style="display:block;width:100%;height:100%;object-fit:{object_fit};'
-        f'object-position:{_object_position(preserve)};pointer-events:none"></video>'
-        "</foreignObject>"
+        f'aria-hidden="true" '
+        f'style="position:absolute;z-index:1;display:block;'
+        f'left:{_format_percent(left)}%;top:{_format_percent(top)}%;'
+        f'width:{_format_percent(width)}%;height:{_format_percent(height)}%;'
+        f'object-fit:{object_fit};object-position:{_object_position(preserve)};'
+        f'pointer-events:none"></video>'
     )
 
 
 _IMAGE_TAG_PATTERN = re.compile(r"<image\b[^>]*?/?>", re.IGNORECASE)
 _VIDEO_TAG_PATTERN = re.compile(r"<video\b[^>]*>.*?</video\s*>", re.IGNORECASE | re.DOTALL)
+_FOREIGN_OBJECT_PATTERN = re.compile(
+    r"<foreignObject\b[^>]*>.*?</foreignObject\s*>",
+    re.IGNORECASE | re.DOTALL,
+)
+_SECTION_END_PATTERN = re.compile(r"</section\s*>\s*$", re.IGNORECASE)
 
 
 def _attribute_value(tag: str, attribute: str) -> str | None:
@@ -449,6 +504,20 @@ def _replace_attribute(tag: str, attribute: str, value: str) -> str:
     if pattern.search(tag):
         return pattern.sub(rf'\1"{escaped_value}"', tag, count=1)
     return tag.replace(">", f' {attribute}="{escaped_value}">', 1)
+
+
+def _append_overlay(text: str, overlay: str, slide_path: Path) -> str:
+    if slide_path.suffix.lower() not in {".html", ".htm"}:
+        raise MediaOptimizationError(
+            "HTML video overlays require a .html slide fragment with a .pm-slide root; "
+            f"cannot safely rewrite {slide_path.name}."
+        )
+    section_end = _SECTION_END_PATTERN.search(text)
+    if section_end is None:
+        raise MediaOptimizationError(
+            f"unable to append optimized video overlay: missing closing section in {slide_path}"
+        )
+    return f"{text[:section_end.start()]}  {overlay}\n{section_end.group(0)}"
 
 
 def _rewrite_slide_placement(
@@ -473,7 +542,8 @@ def _rewrite_slide_placement(
     optimized_reference = Path(os.path.relpath(optimized_path, slide_path.parent)).as_posix()
     text = slide_path.read_text(encoding="utf-8")
 
-    if placement.get("source_kind") == "video":
+    source_kind = str(placement.get("source_kind", "image"))
+    if source_kind == "overlay-video":
         replaced = False
 
         def update_video(match: re.Match[str]) -> str:
@@ -495,25 +565,44 @@ def _rewrite_slide_placement(
         rewritten = _VIDEO_TAG_PATTERN.sub(update_video, text)
     else:
         replaced = False
-        replacement = _video_foreign_object(
+        replacement = _video_overlay(
             placement,
             source_reference=source_reference,
             optimized_reference=optimized_reference,
             target=target,
         )
 
-        def replace_image(match: re.Match[str]) -> str:
+        def remove_original(match: re.Match[str]) -> str:
             nonlocal replaced
             tag = match.group(0)
             if replaced:
                 return tag
-            href = _attribute_value(tag, "href") or _attribute_value(tag, "xlink:href")
-            if href != source_reference:
-                return tag
+            if source_kind == "foreignobject-video":
+                video_match = _VIDEO_TAG_PATTERN.search(tag)
+                if video_match is None:
+                    return tag
+                video_tag = video_match.group(0)
+                current_id = _attribute_value(video_tag, "data-pm-placement-id")
+                if current_id:
+                    if current_id != placement_id:
+                        return tag
+                elif _attribute_value(video_tag, "data-pm-source-gif") != source_reference:
+                    return tag
+            else:
+                href = _attribute_value(tag, "href") or _attribute_value(tag, "xlink:href")
+                if href != source_reference:
+                    return tag
             replaced = True
-            return replacement
+            return ""
 
-        rewritten = _IMAGE_TAG_PATTERN.sub(replace_image, text)
+        pattern = (
+            _FOREIGN_OBJECT_PATTERN
+            if source_kind == "foreignobject-video"
+            else _IMAGE_TAG_PATTERN
+        )
+        rewritten = pattern.sub(remove_original, text)
+        if replaced:
+            rewritten = _append_overlay(rewritten, replacement, slide_path)
 
     if not replaced:
         raise MediaOptimizationError(
@@ -653,6 +742,9 @@ def analyze_project(
             if metadata.file_size < min_bytes:
                 continue
             viewport_width, viewport_height = _resolve_svg_viewport(svg_attrs)
+            parsed_viewbox = _parse_viewbox(svg_attrs)
+            viewbox_min_x = parsed_viewbox[0] if parsed_viewbox is not None else 0.0
+            viewbox_min_y = parsed_viewbox[1] if parsed_viewbox is not None else 0.0
             width_units = _parse_numeric(image_attrs.get("width", ""), relative_to=viewport_width)
             height_units = _parse_numeric(image_attrs.get("height", ""), relative_to=viewport_height)
             x_units = _parse_numeric(image_attrs.get("x", "0"), relative_to=viewport_width) or 0.0
@@ -684,6 +776,8 @@ def analyze_project(
                     "placement_id": placement_id,
                     "source_kind": image_attrs.get("_source_kind", "image"),
                     "svg_viewbox": {
+                        "min_x": viewbox_min_x,
+                        "min_y": viewbox_min_y,
                         "width": viewport_width,
                         "height": viewport_height,
                     },

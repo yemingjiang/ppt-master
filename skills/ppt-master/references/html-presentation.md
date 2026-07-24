@@ -34,7 +34,7 @@ Match `data-slide-id` to the manifest ID. Do not add a document wrapper, a secon
 - The current main agent MUST author final slide fragments sequentially, one slide at a time, in one continuous pass. Do not delegate final slide authoring or create grouped slide batches.
 - `prepare_single_html.py` may deterministically scaffold all approved SVGs at once. This mechanical initialization is not creative page authoring. It prefixes SVG IDs, rebases local resources, wraps each page in `.pm-slide`, and prepares the manifest/CSS; review and refine the resulting fragments sequentially.
 - Use only project-local resources. The builder embeds them for offline delivery; do not use remote URLs, `file:` URLs, or browser-only dependencies.
-- For final-HTML media optimization, the dedicated optimizer may replace an SVG `<image>` GIF placement with a same-position `<foreignObject><video>` inside the final slide fragment. This exception is limited to `html_output/slides/`; never introduce `foreignObject` into review SVGs or PPTX-oriented sources.
+- For final-HTML media optimization, the dedicated optimizer may replace an SVG `<image>` GIF placement with an ordinary HTML `<video>` overlay inside the `.pm-slide` root. The overlay is positioned as percentages of the full-slide SVG `viewBox`; do not use `<foreignObject><video>`, because browser compositor behavior can move or clip it at non-default display scaling. Never introduce `foreignObject` into review SVGs, final HTML slide SVGs, or PPTX-oriented sources.
 - Use an `iframe` only for intentionally isolated, self-contained embedded content. Keep its source project-local; the builder inlines it and rejects recursive or remote iframe content. Do not use iframe isolation to bypass the slide-root or offline-resource contracts.
 - Let the packaged runtime provide PowerPoint-like presentation input, progress, fullscreen, and speaker-notes controls. Do not replace or remove those hooks.
 - Treat the presentation input matrix as mandatory:
@@ -61,7 +61,7 @@ Only when the user requests or approves media optimization, apply the recommenda
 python3 ${SKILL_DIR}/scripts/optimize_single_html_media.py <project_path> --apply --json
 ```
 
-`--apply` requires `ffmpeg`. It writes H.264 MP4 derivatives under `html_output/media_optimized/`, keeps original GIFs and source SVGs unchanged, and rewrites matching final HTML placements as muted, looping, inline autoplay videos. Derivative names include a source-content fingerprint, so unchanged media is reused while changed GIF content is retranscoded. A derivative that is not smaller than its GIF is not substituted.
+`--apply` requires `ffmpeg`. It writes H.264 MP4 derivatives under `html_output/media_optimized/`, keeps original GIFs and source SVGs unchanged, removes the matching GIF placement from the final slide SVG, and adds a muted, looping, inline autoplay HTML video overlay to the slide root. The overlay keeps its original SVG layout box as data attributes and uses percentage coordinates relative to the full-slide `viewBox`, so browser resolution, zoom, and display scaling do not change its anchor. Derivative names include a source-content fingerprint, so unchanged media is reused while changed GIF content is retranscoded. A derivative that is not smaller than its GIF is not substituted.
 
 Use `--target 4k` only when the user explicitly asks for a 4K presentation:
 
