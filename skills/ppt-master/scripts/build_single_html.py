@@ -27,6 +27,59 @@ _CSS_HEX_COLOR_PATTERN = re.compile(r"^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{4}|[0-9a-f
 _INVALID_PERCENT_ESCAPE_PATTERN = re.compile(r"%(?![0-9a-fA-F]{2})")
 _MAX_IFRAME_NESTING_DEPTH = 16
 _MAX_DECODED_DATA_IFRAME_BYTES = 128 * 1024 * 1024
+_LARGE_DOCUMENT_WARNING_BYTES = 50 * 1024 * 1024
+_VERY_LARGE_DOCUMENT_WARNING_BYTES = 100 * 1024 * 1024
+_LARGE_ASSET_WARNING_BYTES = 10 * 1024 * 1024
+_LARGE_GIF_WARNING_BYTES = 8 * 1024 * 1024
+
+_RUNTIME_STRINGS = {
+    "en": {
+        "presentation": "Presentation",
+        "controls": "Presentation controls",
+        "previous": "Previous slide",
+        "next": "Next slide",
+        "fullscreen": "Toggle fullscreen",
+        "notes": "Notes",
+        "notes_toggle": "Toggle speaker notes",
+        "notes_title": "Speaker notes",
+        "notes_close": "Close speaker notes",
+        "help_toggle": "Show shortcut help",
+        "help_title": "Presentation controls",
+        "help_close": "Close shortcut help",
+        "help_keyboard": "Keyboard / remote",
+        "help_keyboard_detail": "← ↑ PageUp P · → ↓ PageDown N Space Enter",
+        "help_mouse": "Mouse / trackpad",
+        "help_mouse_detail": "Click to advance · scroll · horizontal drag",
+        "help_touch": "Touch",
+        "help_touch_detail": "Swipe horizontally",
+        "help_panels": "Panels",
+        "help_panels_detail": "F fullscreen · S notes · ? help",
+        "no_notes": "No speaker notes for this slide.",
+    },
+    "zh": {
+        "presentation": "演示文稿",
+        "controls": "演示控制",
+        "previous": "上一页",
+        "next": "下一页",
+        "fullscreen": "切换全屏",
+        "notes": "备注",
+        "notes_toggle": "切换演讲者备注",
+        "notes_title": "演讲者备注",
+        "notes_close": "关闭演讲者备注",
+        "help_toggle": "显示快捷键帮助",
+        "help_title": "演示控制",
+        "help_close": "关闭快捷键帮助",
+        "help_keyboard": "键盘 / 翻页笔",
+        "help_keyboard_detail": "← ↑ PageUp P · → ↓ PageDown N 空格 Enter",
+        "help_mouse": "鼠标 / 触控板",
+        "help_mouse_detail": "单击前进 · 滚轮 · 水平拖动",
+        "help_touch": "触控",
+        "help_touch_detail": "水平轻扫",
+        "help_panels": "面板",
+        "help_panels_detail": "F 全屏 · S 备注 · ? 帮助",
+        "no_notes": "本页没有演讲者备注。",
+    },
+}
 
 
 class PackagingError(ValueError):
@@ -103,6 +156,8 @@ class OfflineResourcePackager:
         self.project_root = project_root.resolve()
         self.embedded_count = 0
         self.warnings: list[str] = []
+        self._data_uri_cache: dict[Path, str] = {}
+        self._asset_records: dict[Path, dict[str, object]] = {}
 
     def rewrite_html(
         self,
@@ -164,6 +219,12 @@ class OfflineResourcePackager:
         """Read a project-local resource and return its typed base64 data URI."""
         path = path.resolve()
         self._require_project_local(path, "resource")
+        self.embedded_count += 1
+        if path in self._data_uri_cache:
+            self._asset_records[path]["references"] = (
+                int(self._asset_records[path]["references"]) + 1
+            )
+            return self._data_uri_cache[path]
         try:
             contents = path.read_bytes()
         except OSError as error:
@@ -175,8 +236,43 @@ class OfflineResourcePackager:
         if media_type is None:
             raise PackagingError(f"unsupported or indeterminate MIME type for resource: {path}")
         encoded = base64.b64encode(contents).decode("ascii")
-        self.embedded_count += 1
-        return f"data:{media_type};base64,{encoded}"
+        data_uri = f"data:{media_type};base64,{encoded}"
+        self._data_uri_cache[path] = data_uri
+        self._asset_records[path] = {
+            "path": path,
+            "bytes": len(contents),
+            "media_type": media_type,
+            "extension": path.suffix.lower(),
+            "data_uri_bytes": len(data_uri.encode("utf-8")),
+            "references": 1,
+        }
+        return data_uri
+
+    def asset_report(self) -> dict[str, object]:
+        """Return stable unique-resource and embedded-payload statistics."""
+        assets: list[dict[str, object]] = []
+        for path, record in self._asset_records.items():
+            references = int(record["references"])
+            assets.append(
+                {
+                    "path": path.relative_to(self.project_root).as_posix(),
+                    "bytes": int(record["bytes"]),
+                    "media_type": str(record["media_type"]),
+                    "extension": str(record["extension"]),
+                    "references": references,
+                    "embedded_payload_bytes": int(record["data_uri_bytes"]) * references,
+                }
+            )
+        assets.sort(key=lambda item: (-int(item["bytes"]), str(item["path"])))
+        return {
+            "unique_assets": len(assets),
+            "reference_count": self.embedded_count,
+            "source_bytes": sum(int(item["bytes"]) for item in assets),
+            "embedded_payload_bytes": sum(
+                int(item["embedded_payload_bytes"]) for item in assets
+            ),
+            "largest_assets": assets[:10],
+        }
 
     def _rewrite_reference(self, reference: str, source_path: Path) -> str:
         if self._is_preserved_reference(reference):
@@ -457,6 +553,11 @@ def _safe_json(data: object) -> str:
     return json.dumps(data, ensure_ascii=False, separators=(",", ":")).replace("</", "<\\/")
 
 
+def _runtime_strings(language: str) -> dict[str, str]:
+    """Return the supported runtime locale, falling back to English."""
+    return _RUNTIME_STRINGS["zh" if language.lower().startswith("zh") else "en"]
+
+
 def render_document(
     manifest: dict[str, object],
     slides: list[str],
@@ -466,15 +567,37 @@ def render_document(
     """Render validated presentation sources into the portable presentation shell."""
     title = _require_string(manifest, "title")
     language = _require_string(manifest, "lang")
+    strings = _runtime_strings(language)
     replacements = {
         "LANG": html.escape(language, quote=True),
         "TITLE": html.escape(title, quote=True),
+        "PRESENTATION_LABEL": html.escape(strings["presentation"], quote=True),
+        "CONTROLS_LABEL": html.escape(strings["controls"], quote=True),
+        "PREVIOUS_LABEL": html.escape(strings["previous"], quote=True),
+        "NEXT_LABEL": html.escape(strings["next"], quote=True),
+        "FULLSCREEN_LABEL": html.escape(strings["fullscreen"], quote=True),
+        "NOTES_LABEL": html.escape(strings["notes"], quote=True),
+        "NOTES_TOGGLE_LABEL": html.escape(strings["notes_toggle"], quote=True),
+        "NOTES_TITLE": html.escape(strings["notes_title"], quote=True),
+        "NOTES_CLOSE_LABEL": html.escape(strings["notes_close"], quote=True),
+        "HELP_TOGGLE_LABEL": html.escape(strings["help_toggle"], quote=True),
+        "HELP_TITLE": html.escape(strings["help_title"], quote=True),
+        "HELP_CLOSE_LABEL": html.escape(strings["help_close"], quote=True),
+        "HELP_KEYBOARD": html.escape(strings["help_keyboard"], quote=True),
+        "HELP_KEYBOARD_DETAIL": html.escape(strings["help_keyboard_detail"], quote=True),
+        "HELP_MOUSE": html.escape(strings["help_mouse"], quote=True),
+        "HELP_MOUSE_DETAIL": html.escape(strings["help_mouse_detail"], quote=True),
+        "HELP_TOUCH": html.escape(strings["help_touch"], quote=True),
+        "HELP_TOUCH_DETAIL": html.escape(strings["help_touch_detail"], quote=True),
+        "HELP_PANELS": html.escape(strings["help_panels"], quote=True),
+        "HELP_PANELS_DETAIL": html.escape(strings["help_panels_detail"], quote=True),
         "THEME_TOKENS": _theme_tokens_css(manifest),
         "RUNTIME_CSS": _read_presentation_asset("runtime.css"),
         "THEME_CSS": _read_presentation_asset("executive-red.css"),
         "PROJECT_CSS": project_css,
         "SLIDES": "\n".join(slides),
         "NOTES_JSON": _safe_json(notes),
+        "RUNTIME_DATA_JSON": _safe_json({"noNotes": strings["no_notes"]}),
         "RUNTIME_JS": _read_presentation_asset("runtime.js"),
     }
     shell = _read_presentation_asset("shell.html")
@@ -506,7 +629,9 @@ def _build_notes(manifest: dict[str, object], project_path: Path) -> dict[str, d
         if notes_key not in notes_by_key:
             raise PackagingError(
                 f"slides[{index}] (slide id {slide_id!r}) notes_key {notes_key!r} "
-                f"was not found in speaker-notes source: {notes_source}"
+                f"was not found in speaker-notes source: {notes_source}. "
+                "Notes headings are normalized to their slide key "
+                "(for example '# 01 Cover' becomes '01'); omit notes_key to use the slide id."
             )
         notes[slide_id] = notes_by_key[notes_key]
     return notes
@@ -694,8 +819,10 @@ def _write_atomically(output_path: Path, document: str) -> int:
     return len(payload)
 
 
-def build_single_html(project_path: Path, output_path: Path | None = None) -> dict[str, object]:
-    """Build an offline, self-contained HTML presentation without altering a prior target on failure."""
+def _assemble_single_html(
+    project_path: Path,
+) -> tuple[str, dict[str, object], OfflineResourcePackager, int]:
+    """Validate and assemble the final document without writing the export."""
     project_path = project_path.resolve()
     manifest = load_manifest(project_path)
     packager = OfflineResourcePackager(project_path)
@@ -718,20 +845,68 @@ def build_single_html(project_path: Path, output_path: Path | None = None) -> di
 
     document = render_document(manifest, slides, project_css, _build_notes(manifest, project_path))
     _validate_offline_document(document)
-    output_path = (output_path or _default_output_path(project_path)).resolve()
-    bytes_written = _write_atomically(output_path, document)
+    return document, manifest, packager, len(slides)
+
+
+def _build_warnings(document_bytes: int, packager: OfflineResourcePackager) -> list[str]:
     warnings = list(packager.warnings)
-    if bytes_written > 100 * 1024 * 1024:
+    if document_bytes > _LARGE_DOCUMENT_WARNING_BYTES:
+        warnings.append(
+            "Generated HTML exceeds 50 MB; test opening speed on the actual presentation machine."
+        )
+    if document_bytes > _VERY_LARGE_DOCUMENT_WARNING_BYTES:
         warnings.append("Generated HTML exceeds 100 MB and may be slow to open in a browser.")
+    asset_report = packager.asset_report()
+    for asset in asset_report["largest_assets"]:
+        asset_bytes = int(asset["bytes"])
+        asset_path = str(asset["path"])
+        if asset_bytes > _LARGE_ASSET_WARNING_BYTES:
+            warnings.append(
+                f"Large embedded asset ({asset_bytes} bytes): {asset_path}."
+            )
+        if str(asset["extension"]) == ".gif" and asset_bytes > _LARGE_GIF_WARNING_BYTES:
+            warnings.append(
+                f"Large GIF ({asset_bytes} bytes): {asset_path}. "
+                "Consider MP4/WebM or animated WebP for the final HTML; do not transcode automatically."
+            )
+    return warnings
+
+
+def check_single_html(project_path: Path) -> dict[str, object]:
+    """Run complete packaging validation without writing an export."""
+    project_path = project_path.resolve()
+    document, _manifest, packager, slide_count = _assemble_single_html(project_path)
+    estimated_bytes = len(document.encode("utf-8"))
     return {
         "status": "ok",
+        "mode": "check",
+        "project_path": str(project_path),
+        "planned_output_html": str(_default_output_path(project_path).resolve()),
+        "slides": slide_count,
+        "embedded_assets": packager.embedded_count,
+        "estimated_bytes": estimated_bytes,
+        "media": packager.asset_report(),
+        "warnings": _build_warnings(estimated_bytes, packager),
+    }
+
+
+def build_single_html(project_path: Path, output_path: Path | None = None) -> dict[str, object]:
+    """Build an offline, self-contained HTML presentation without altering a prior target on failure."""
+    project_path = project_path.resolve()
+    document, _manifest, packager, slide_count = _assemble_single_html(project_path)
+    output_path = (output_path or _default_output_path(project_path)).resolve()
+    bytes_written = _write_atomically(output_path, document)
+    return {
+        "status": "ok",
+        "mode": "build",
         "project_path": str(project_path),
         "output_html": str(output_path),
         "output_file_url": output_path.as_uri(),
-        "slides": len(slides),
+        "slides": slide_count,
         "embedded_assets": packager.embedded_count,
         "bytes": bytes_written,
-        "warnings": warnings,
+        "media": packager.asset_report(),
+        "warnings": _build_warnings(bytes_written, packager),
     }
 
 
@@ -740,6 +915,7 @@ def parse_args() -> argparse.Namespace:
         description="Build an offline, self-contained HTML presentation from html_output/presentation.json.",
         epilog=(
             "Examples:\n"
+            "  python3 build_single_html.py projects/quarterly-review --check --json\n"
             "  python3 build_single_html.py projects/quarterly-review\n"
             "  python3 build_single_html.py projects/quarterly-review --output exports/review.html\n"
             "  python3 build_single_html.py projects/quarterly-review --json"
@@ -752,6 +928,11 @@ def parse_args() -> argparse.Namespace:
         type=Path,
         help="Output HTML file. Default: <project_path>/exports/<project_name>.single.html.",
     )
+    parser.add_argument(
+        "--check",
+        action="store_true",
+        help="Run complete manifest, notes, resource, and offline validation without writing an export.",
+    )
     parser.add_argument("--json", action="store_true", help="Print a single machine-readable JSON object.")
     return parser.parse_args()
 
@@ -759,7 +940,13 @@ def parse_args() -> argparse.Namespace:
 def main() -> int:
     args = parse_args()
     try:
-        result = build_single_html(args.project_path, args.output)
+        if args.check and args.output is not None:
+            raise PackagingError("--check cannot be combined with --output")
+        result = (
+            check_single_html(args.project_path)
+            if args.check
+            else build_single_html(args.project_path, args.output)
+        )
     except (OSError, PackagingError, ValueError) as error:
         if args.json:
             print(json.dumps({"status": "error", "error": str(error)}, ensure_ascii=False, separators=(",", ":")))
@@ -768,6 +955,15 @@ def main() -> int:
         return 1
     if args.json:
         print(json.dumps(result, ensure_ascii=False, separators=(",", ":")))
+    elif args.check:
+        print(f"Check passed: {result['planned_output_html']}")
+        print(f"Slides: {result['slides']}")
+        print(f"Embedded resources: {result['embedded_assets']}")
+        print(f"Estimated output bytes: {result['estimated_bytes']}")
+        warnings = result["warnings"]
+        print(f"Warnings: {len(warnings)} (details on stderr)" if warnings else "Warnings: none")
+        for warning in warnings:
+            print(f"Warning: {warning}", file=os.sys.stderr)
     else:
         print(f"Saved: {result['output_html']}")
         print(f"Slides: {result['slides']}")

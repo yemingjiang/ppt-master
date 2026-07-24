@@ -10,17 +10,29 @@
   const notesPanel = document.getElementById("pmNotesPanel");
   const notesContent = document.getElementById("pmNotesContent");
   const notesData = document.getElementById("pmNotesData");
+  const helpPanel = document.getElementById("pmHelpPanel");
+  const runtimeData = document.getElementById("pmRuntimeData");
   const slides = Array.from(deck.querySelectorAll(".pm-slide"));
   let currentIndex = 0;
   let pointerStart = null;
   let touchStart = null;
+  let suppressClickUntil = 0;
+  let wheelAccumulator = 0;
+  let wheelResetTimer = null;
+  let lastWheelNavigationAt = 0;
   let controlsTimer = null;
   let notes = {};
+  let runtimeText = {};
 
   try {
     notes = JSON.parse(notesData.textContent || "{}");
   } catch (_error) {
     notes = {};
+  }
+  try {
+    runtimeText = JSON.parse(runtimeData.textContent || "{}");
+  } catch (_error) {
+    runtimeText = {};
   }
 
   function isInteractiveTarget(target) {
@@ -47,14 +59,15 @@
   function updateHash() {
     const active = slides[currentIndex];
     if (!active) return;
-    const hash = `#${encodeURIComponent(active.dataset.slideId || String(currentIndex + 1))}`;
+    const hash = `#slide=${encodeURIComponent(active.dataset.slideId || String(currentIndex + 1))}`;
     if (window.location.hash !== hash) {
       history.replaceState(null, "", hash);
     }
   }
 
   function hashSlideId() {
-    const value = window.location.hash.slice(1);
+    const rawValue = window.location.hash.slice(1);
+    const value = rawValue.startsWith("slide=") ? rawValue.slice(6) : rawValue;
     try {
       return decodeURIComponent(value);
     } catch (_error) {
@@ -65,7 +78,9 @@
   function renderNotes() {
     const active = slides[currentIndex];
     const entry = active ? notes[active.dataset.slideId] : null;
-    const script = entry && entry.script ? entry.script : "No speaker notes for this slide.";
+    const script = entry && entry.script ? entry.script : (
+      runtimeText.noNotes || "No speaker notes for this slide."
+    );
     notesContent.textContent = script;
   }
 
@@ -104,19 +119,33 @@
     }
   }
 
-  function toggleNotes() {
-    const open = notesPanel.hidden;
-    notesPanel.hidden = !open;
-    notesPanel.setAttribute("aria-hidden", String(!open));
+  function togglePanel(panel, actionName) {
+    const open = panel.hidden;
+    [notesPanel, helpPanel].forEach((candidate) => {
+      if (candidate !== panel) {
+        candidate.hidden = true;
+        candidate.setAttribute("aria-hidden", "true");
+      }
+    });
+    panel.hidden = !open;
+    panel.setAttribute("aria-hidden", String(!open));
     if (open) {
-      notesPanel.querySelector("button").focus();
+      panel.querySelector("button").focus();
       return;
     }
     const focused = document.activeElement;
-    if (focused && focused.closest && focused.closest("#pmNotesPanel")) {
-      const notesTrigger = controls.querySelector('[data-pm-action="notes"]');
-      if (notesTrigger) notesTrigger.focus();
+    if (focused && focused.closest && focused.closest(`#${panel.id}`)) {
+      const trigger = controls.querySelector(`[data-pm-action="${actionName}"]`);
+      if (trigger) trigger.focus();
     }
+  }
+
+  function toggleNotes() {
+    togglePanel(notesPanel, "notes");
+  }
+
+  function toggleHelp() {
+    togglePanel(helpPanel, "help");
   }
 
   function revealControls() {
@@ -124,7 +153,7 @@
     window.clearTimeout(controlsTimer);
     controlsTimer = window.setTimeout(() => {
       const focused = document.activeElement;
-      if (focused && focused.closest && focused.closest("#pmControls, #pmNotesPanel")) {
+      if (focused && focused.closest && focused.closest("#pmControls, #pmNotesPanel, #pmHelpPanel")) {
         revealControls();
         return;
       }
@@ -135,7 +164,7 @@
   function restoreHash() {
     const requested = hashSlideId();
     const found = slides.findIndex((slide) => slide.dataset.slideId === requested);
-    show(found >= 0 ? found : 0, found < 0);
+    show(found >= 0 ? found : 0);
   }
 
   document.addEventListener("click", (event) => {
@@ -146,6 +175,7 @@
       next: () => go(1),
       fullscreen: toggleFullscreen,
       notes: toggleNotes,
+      help: toggleHelp,
     };
     const handler = handlers[action.dataset.pmAction];
     if (handler) {
@@ -156,25 +186,40 @@
   });
 
   stage.addEventListener("click", (event) => {
-    const activeSlide = slides[currentIndex];
-    if (!isInteractiveTarget(event.target) && (
-      event.target === stage || event.target === deck || event.target === activeSlide
-    )) go(1);
+    if (isInteractiveTarget(event.target) || Date.now() < suppressClickUntil) return;
+    go(1);
   });
 
   document.addEventListener("keydown", (event) => {
-    if (isInteractiveTarget(event.target)) return;
+    if (isInteractiveTarget(event.target) || event.altKey || event.ctrlKey || event.metaKey) return;
+    const isSpace = event.key === " " || event.key === "Space" || event.key === "Spacebar";
+    if (isSpace && event.shiftKey) {
+      event.preventDefault();
+      go(-1);
+      revealControls();
+      return;
+    }
     switch (event.key) {
       case "ArrowLeft":
+      case "ArrowUp":
       case "PageUp":
+      case "Backspace":
+      case "p":
+      case "P":
+      case "MediaTrackPrevious":
         event.preventDefault();
         go(-1);
         break;
       case "ArrowRight":
+      case "ArrowDown":
       case "PageDown":
       case " ":
       case "Space":
       case "Spacebar":
+      case "Enter":
+      case "n":
+      case "N":
+      case "MediaTrackNext":
         event.preventDefault();
         go(1);
         break;
@@ -191,10 +236,14 @@
         event.preventDefault();
         toggleFullscreen();
         break;
-      case "n":
-      case "N":
+      case "s":
+      case "S":
         event.preventDefault();
         toggleNotes();
+        break;
+      case "?":
+        event.preventDefault();
+        toggleHelp();
         break;
       default:
         return;
@@ -204,28 +253,69 @@
 
   stage.addEventListener("pointerdown", (event) => {
     revealControls();
-    if (event.pointerType !== "touch" && !isInteractiveTarget(event.target)) pointerStart = event.clientX;
+    if (event.pointerType !== "touch" && !isInteractiveTarget(event.target)) {
+      pointerStart = { x: event.clientX, y: event.clientY };
+    }
   });
   stage.addEventListener("pointerup", (event) => {
     if (pointerStart === null || isInteractiveTarget(event.target)) return;
-    const delta = event.clientX - pointerStart;
+    const deltaX = event.clientX - pointerStart.x;
+    const deltaY = event.clientY - pointerStart.y;
     pointerStart = null;
-    if (Math.abs(delta) > 48) go(delta < 0 ? 1 : -1);
+    if (Math.abs(deltaX) > 48 && Math.abs(deltaX) > Math.abs(deltaY) * 1.2) {
+      suppressClickUntil = Date.now() + 350;
+      go(deltaX < 0 ? 1 : -1);
+    }
+  });
+  stage.addEventListener("pointercancel", () => {
+    pointerStart = null;
   });
   stage.addEventListener("touchstart", (event) => {
     revealControls();
-    if (!isInteractiveTarget(event.target)) touchStart = event.changedTouches[0].clientX;
+    if (!isInteractiveTarget(event.target)) {
+      touchStart = {
+        x: event.changedTouches[0].clientX,
+        y: event.changedTouches[0].clientY,
+      };
+    }
   }, { passive: true });
   stage.addEventListener("touchend", (event) => {
     if (touchStart === null || isInteractiveTarget(event.target)) return;
-    const delta = event.changedTouches[0].clientX - touchStart;
+    const deltaX = event.changedTouches[0].clientX - touchStart.x;
+    const deltaY = event.changedTouches[0].clientY - touchStart.y;
     touchStart = null;
-    if (Math.abs(delta) > 48) go(delta < 0 ? 1 : -1);
+    if (Math.abs(deltaX) > 48 && Math.abs(deltaX) > Math.abs(deltaY) * 1.2) {
+      suppressClickUntil = Date.now() + 350;
+      go(deltaX < 0 ? 1 : -1);
+    }
   }, { passive: true });
+  stage.addEventListener("touchcancel", () => {
+    touchStart = null;
+  }, { passive: true });
+  stage.addEventListener("wheel", (event) => {
+    revealControls();
+    if (event.ctrlKey || isInteractiveTarget(event.target)) return;
+    const delta = Math.abs(event.deltaY) >= Math.abs(event.deltaX) ? event.deltaY : event.deltaX;
+    if (!delta) return;
+    event.preventDefault();
+    wheelAccumulator += delta;
+    window.clearTimeout(wheelResetTimer);
+    wheelResetTimer = window.setTimeout(() => {
+      wheelAccumulator = 0;
+    }, 180);
+    if (Math.abs(wheelAccumulator) < 60) return;
+    const now = Date.now();
+    if (now - lastWheelNavigationAt < 450) {
+      wheelAccumulator = 0;
+      return;
+    }
+    go(wheelAccumulator > 0 ? 1 : -1);
+    lastWheelNavigationAt = now;
+    wheelAccumulator = 0;
+  }, { passive: false });
 
   window.addEventListener("hashchange", restoreHash);
   window.addEventListener("pointermove", revealControls, { passive: true });
-  document.addEventListener("keydown", revealControls);
   document.addEventListener("pointerdown", revealControls, { passive: true });
   document.addEventListener("focusin", revealControls);
   controls.addEventListener("pointermove", revealControls, { passive: true });

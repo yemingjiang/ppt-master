@@ -15,7 +15,7 @@ html_output/
     └── 02_overview.html
 ```
 
-Create `html_output/presentation.json` with `schema_version: 1`, `title`, `lang`, `aspect_ratio`, a named `theme` with color `tokens`, and ordered `slides`. Each slide needs unique `id`, audience-facing `title`, project-local `file`, and `notes_key`. Use the default `executive-red` theme unless the confirmed design spec requires another named theme and its complete tokens.
+Create `html_output/presentation.json` with `schema_version: 1`, `title`, `lang`, `aspect_ratio`, a named `theme` with color `tokens`, and ordered `slides`. Each slide needs a unique `id`, audience-facing `title`, and project-local `file`. `notes_key` is optional and defaults to the slide ID. Use the default `executive-red` theme unless the confirmed design spec requires another named theme and its complete tokens.
 
 The confirmed theme is fixed at build time. A runtime theme switcher or chooser is forbidden.
 
@@ -32,26 +32,48 @@ Match `data-slide-id` to the manifest ID. Do not add a document wrapper, a secon
 - Keep final slide copy audience-facing. Put presenter directions, source trails, and production comments in notes, never in visible slide chrome unless explicitly requested.
 - Read the confirmed `design_spec.md`, `main_content.md`, `style_sheet.md`, `asset_manifest.md`, and `notes/total.md` before authoring. Reuse confirmed project-local assets; do not invent source claims or visible provenance footers.
 - The current main agent MUST author final slide fragments sequentially, one slide at a time, in one continuous pass. Do not delegate final slide authoring or create grouped slide batches.
+- `prepare_single_html.py` may deterministically scaffold all approved SVGs at once. This mechanical initialization is not creative page authoring. It prefixes SVG IDs, rebases local resources, wraps each page in `.pm-slide`, and prepares the manifest/CSS; review and refine the resulting fragments sequentially.
 - Use only project-local resources. The builder embeds them for offline delivery; do not use remote URLs, `file:` URLs, or browser-only dependencies.
 - Use an `iframe` only for intentionally isolated, self-contained embedded content. Keep its source project-local; the builder inlines it and rejects recursive or remote iframe content. Do not use iframe isolation to bypass the slide-root or offline-resource contracts.
-- Let the packaged runtime provide keyboard, click/touch navigation, progress, fullscreen, and speaker-notes controls. Do not replace or remove those hooks.
-- Write speaker notes in `notes/total.md` with headings that match each `notes_key`. The final runtime exposes them through its notes control; do not place the script visibly on slides.
+- Let the packaged runtime provide PowerPoint-like presentation input, progress, fullscreen, and speaker-notes controls. Do not replace or remove those hooks.
+- Treat the presentation input matrix as mandatory:
+  - Keyboard and presentation remotes: previous with `PageUp`, `ArrowLeft`, `ArrowUp`, `Backspace`, `P`, `Shift+Space`, or media-previous; next with `PageDown`, `ArrowRight`, `ArrowDown`, `Enter`, `Space`, `N`, or media-next. Use `Home` / `End` for first / last slide, `F` for fullscreen, `S` for speaker notes, and `?` for shortcut help.
+  - Mouse: bottom controls, primary click on any non-interactive slide area to advance, wheel or trackpad scrolling in either axis to move backward / forward, and horizontal drag to navigate.
+  - Touch: horizontal swipe to navigate.
+  - Preserve normal behavior for links, buttons, form controls, media, iframes, editable content, and elements marked `data-pm-interactive`. Modified browser shortcuts such as `Ctrl+F` / `Cmd+F` must remain available.
+- Write speaker notes in `notes/total.md` with headings that match each `notes_key` or slide ID. Heading normalization accepts forms such as `# 01 Cover` as key `01`. The final runtime exposes notes through its notes control; do not place the script visibly on slides.
+- Use `#slide=<id>` as the canonical shareable URL hash. The runtime also accepts the legacy raw form `#<id>` and normalizes it.
 
 ## Package and validate
 
-Run the final builder only after all sources are complete:
+Use the deterministic initializer for a new final-HTML source tree, or for an intentional refresh:
 
 ```bash
+python3 ${SKILL_DIR}/scripts/prepare_single_html.py <project_path> --dry-run --json
+python3 ${SKILL_DIR}/scripts/prepare_single_html.py <project_path>
+# Use --force only when deliberately refreshing generated files.
+```
+
+Preflight, package, and run real-browser QA:
+
+```bash
+python3 ${SKILL_DIR}/scripts/build_single_html.py <project_path> --check --json
 python3 ${SKILL_DIR}/scripts/build_single_html.py <project_path>
+python3 ${SKILL_DIR}/scripts/qa_single_html.py <project_path> --screenshots <qa_dir> --json
 ```
 
 Deliver `<project_path>/exports/<project_name>.single.html`. `preview/index.html` is not the final HTML; it remains the review-only skeleton preview.
 
-Before delivery, open the packaged file without a server and verify:
+The builder reports unique asset count, reference count, source bytes, embedded payload bytes, largest assets, and advisory size warnings. A final file over 50 MB, an individual asset over 10 MB, or a GIF over 8 MB should trigger review. Prefer manually prepared MP4/WebM/animated WebP when appropriate; the builder never transcodes source media automatically.
+
+Before delivery:
 
 - it opens offline with no network requests or broken local resources;
-- every slide navigates by controls, keyboard, touch/click, and URL hash;
+- every slide navigates by controls, the complete keyboard / presentation-remote matrix, click on visible slide content, mouse wheel / trackpad, mouse drag, touch swipe, and URL hash;
+- one physical-looking advance action causes exactly one slide change, including drag/swipe gestures that may synthesize a click;
 - fullscreen, progress, and speaker-notes controls work;
 - slide sequence, notes, titles, audience-facing copy, theme, fonts, and assets match the confirmed design;
 - iframe content, if any, is visible and isolated without remote dependencies; and
 - the artifact exists at `exports/<project_name>.single.html` and is the one selected final target.
+
+Source/reference images must be inventoried before use under the main skill's image rule. Generated slide screenshots and contact sheets are QA evidence, not source-image analysis: open and inspect them visually, checking overlap, clipping, wrapping, alignment, empty regions, incorrect asset mapping, and slide-to-slide consistency.

@@ -21,7 +21,7 @@ description: Use when asked to create a presentation outline, review draft, fina
 > 4. **GATE BEFORE ENTRY** — Each Step has prerequisites (🚧 GATE) listed at the top; these MUST be verified before starting that Step
 > 5. **NO SPECULATIVE EXECUTION** — "Pre-preparing" content for subsequent Steps is FORBIDDEN (e.g., writing SVG code during the Strategist phase)
 > 6. **NO SUB-AGENT SVG OR FINAL-HTML SLIDE GENERATION** — Draft SVG generation in Step 6 and final HTML slide authoring in Step 8 are context-dependent and MUST be completed by the current main agent end-to-end. Delegating page generation to sub-agents is FORBIDDEN
-> 7. **SEQUENTIAL PAGE GENERATION ONLY** — In Step 6 and final HTML authoring in Step 8, after the global design context is confirmed, generate pages sequentially in one continuous pass. Grouped page batches (for example, 5 pages at a time) are FORBIDDEN
+> 7. **SEQUENTIAL PAGE GENERATION ONLY** — In Step 6 and creative final-HTML authoring in Step 8, generate pages sequentially in one continuous pass. The deterministic `prepare_single_html.py` scaffold may process all approved SVGs at once; creative slide edits still remain sequential and main-agent owned.
 > 8. **SKELETON-FIRST BY DEFAULT** — Unless the user explicitly asks for direct export from `ppt-master`, the default deliverable is a reviewable skeleton package (`main_content.md`, `design_spec.md`, `style_sheet.md`, `asset_manifest.md`, `notes/`, `preview/index.html`) rather than the final polished `.pptx`
 
 > [!IMPORTANT]
@@ -73,35 +73,26 @@ description: Use when asked to create a presentation outline, review draft, fina
 > [!IMPORTANT]
 > ## 🧩 Final Deliverable Mode & Editability Contract
 >
-> Every `ppt-master` run should be treated as one of the following delivery modes:
+> Each run has exactly one Deliverable Mode.
+>
+> Available modes:
 >
 > 1. **Review Skeleton** — default mode; output the reviewable package only
 > 2. **Single-file HTML Presentation** — when the user wants a final offline `.html` presentation
 > 3. **Native Editable Handoff** — when the user wants a final `.pptx` and editability matters
 > 4. **Legacy Direct Export** — compatibility path; explicit request only
 >
-> Rules:
->
-> - Each run has exactly one Deliverable Mode.
-> - If the user asks for a **final offline HTML**, **standalone HTML presentation**, **single-file HTML**, or equivalent, select **Single-file HTML Presentation**.
-> - If the user asks for a **final PPT**, **editable PPT**, **可编辑**, **老板后续要改**, or equivalent, default to **Native Editable Handoff**.
 > - **Review Skeleton**: stop after Step 7; do not select or produce a final target.
+> - A final offline/standalone/single-file HTML request selects **Single-file HTML Presentation**.
+> - A final/editable/manually revisable PPT request selects **Native Editable Handoff**.
+> - Direct `ppt-master` PPTX export selects **Legacy Direct Export** only when explicitly requested or the native path is unavailable.
 > - **Single-file HTML Presentation**: run only the HTML branch. NEVER invoke Native Editable Handoff or Legacy Direct Export in that run.
 > - **Native Editable Handoff**: produce only the native editable PPTX.
 > - **Legacy Direct Export**: produce only the explicitly requested compatibility PPTX.
-> - For every final-production mode, record its sole selected final target in `design_spec.md` before Step 8. Never produce more than one final format in a run.
+> - Before Step 8, record the sole final target in `design_spec.md`; run only that branch.
 > - `preview/index.html` is not the final HTML. It is the review-only skeleton preview.
-> - For **Single-file HTML Presentation**, read `references/html-presentation.md` before authoring `html_output/` and package only with `scripts/build_single_html.py`.
-> - In **Native Editable Handoff**, `ppt-master` owns structure, content outline, style direction, review loop, handoff files, and the final native rebuild. The final native `.pptx` MUST follow `${SKILL_DIR}/references/native-editable.md` and use native PowerPoint text boxes, shapes, tables, and media placement.
-> - `preview/index.html`, `svg_output/`, and `svg_final/` are **review and execution artifacts**, not proof that direct `svg_to_pptx.py` export will be both faithful and editable.
-> - **Cross-engine text-layout rule**: Browser SVG preview and native PowerPoint text layout use different font metrics and wrapping behavior. A page that looks correct in `preview/index.html` can still wrap, overlap, or orphan punctuation in the final native `.pptx`.
-> - **Authored page-number rule**: If the reviewed skeleton includes page numbers or footer chrome, treat them as authored layout elements. The native rebuild should not rely on implicit PowerPoint slide-number placeholders unless the user explicitly asks for them.
-> - Direct SVG export may preserve some visual appearance, but it can also flatten structure, reduce editability, or render differently in PowerPoint. Never describe it as equivalent to a native editable final deck.
-> - Use **Legacy Direct Export** only when the user explicitly asks `ppt-master` itself to export PPTX directly, or when the native editable rebuild path is unavailable.
-> - When using **Legacy Direct Export**, explicitly warn that the result is a converter-oriented compatibility export, not the preferred path for high-fidelity editable delivery.
-> - For **Native Editable Handoff**, repeated cards, timelines, labels, tables, and text-heavy blocks should be described in `design_spec.md` / `main_content.md` as native components that will be reconstructed downstream, while true screenshots, photos, and video thumbnails may remain media assets.
-> - For **Native Editable Handoff**, the native rebuild phase should render PPT-native slide previews and compare them against the approved `preview/index.html` intent before final delivery. This QA pass should explicitly catch: unnecessary extra wraps, manual line breaks that no longer fit, title/body overlap, metric badge overflow, and single-character / punctuation orphan lines.
-> - **Alignment-sensitive component rule**: Large-number comparison cards (for example `~90` vs `21` with adjacent titles and one-line summaries) are especially likely to drift in native PPT. Handoff materials should treat them as alignment-sensitive composite modules, not as arbitrary text boxes.
+> - Follow the selected branch reference: `references/html-presentation.md`, `references/native-editable.md`, or `references/legacy-export.md`.
+> - SVG/HTML review artifacts do not prove native PowerPoint fidelity or editability. Never describe direct SVG conversion as equivalent to a native editable deck.
 
 ## Main Pipeline Scripts
 
@@ -118,7 +109,9 @@ description: Use when asked to create a presentation outline, review draft, fina
 | `${SKILL_DIR}/scripts/image_gen.py` | Local fallback AI image generation CLI (prefer Codex `image_gen` tool in Codex sessions) |
 | `${SKILL_DIR}/scripts/generate_skeleton_docs.py` | Generate standard `main_content.md`, `style_sheet.md`, and `asset_manifest.md` |
 | `${SKILL_DIR}/scripts/build_preview_html.py` | Build lightweight HTML review draft from `svg_output/` or `svg_final/` |
+| `${SKILL_DIR}/scripts/prepare_single_html.py` | Deterministically scaffold final HTML sources from approved SVGs |
 | `${SKILL_DIR}/scripts/build_single_html.py` | Package `html_output/` as a final offline single-file HTML presentation |
+| `${SKILL_DIR}/scripts/qa_single_html.py` | Browser-QA a packaged HTML presentation and optionally capture screenshots |
 | `${SKILL_DIR}/scripts/svg_quality_checker.py` | SVG quality check |
 | `${SKILL_DIR}/scripts/total_md_split.py` | Speaker notes splitting |
 | `${SKILL_DIR}/scripts/finalize_svg.py` | SVG post-processing (unified entry) |
@@ -281,7 +274,7 @@ If the user has provided images, run the analysis script **before outputting the
 python3 ${SKILL_DIR}/scripts/analyze_images.py <project_path>/images
 ```
 
-> ⚠️ **Image handling rule**: The AI must NEVER directly read, open, or view image files (`.jpg`, `.png`, etc.). All image information must come from the `analyze_images.py` script output or the Design Specification's Image Resource List.
+> ⚠️ **Image handling rule**: Do not inspect source/reference image files directly before inventory. First use `analyze_images.py` or the confirmed Image Resource List. This restriction does not apply to generated slide renders, screenshots, or contact sheets: those MUST be viewed during visual QA.
 
 **Output**: `<project_path>/design_spec.md`
 
@@ -420,8 +413,15 @@ ${SKILL_DIR}/references/html-presentation.md
 Author `html_output/` sequentially with the current main agent, then package and offline-QA:
 
 ```bash
+python3 ${SKILL_DIR}/scripts/prepare_single_html.py <project_path> --dry-run --json
+# On first scaffold, or for an intentional refresh:
+python3 ${SKILL_DIR}/scripts/prepare_single_html.py <project_path> [--force]
+python3 ${SKILL_DIR}/scripts/build_single_html.py <project_path> --check --json
 python3 ${SKILL_DIR}/scripts/build_single_html.py <project_path>
+python3 ${SKILL_DIR}/scripts/qa_single_html.py <project_path> --screenshots <qa_dir> --json
 ```
+
+Use `prepare_single_html.py` only as deterministic scaffolding; preserve deliberate HTML edits unless an intentional `--force` refresh is required. Inspect the QA contact sheets and test the complete input matrix in `references/html-presentation.md`.
 
 Deliver `<project_path>/exports/<project_name>.single.html`. `preview/index.html` is not the final HTML.
 
@@ -429,79 +429,17 @@ Never invoke Native Editable Handoff or Legacy Direct Export in this run.
 
 #### Native Editable Handoff
 
-Before producing the final editable deck, read the internal native rebuild reference:
+Read and follow the complete native rebuild contract:
 
 ```text
 ${SKILL_DIR}/references/native-editable.md
 ```
 
-Transition rule:
+This is an internal transition after skeleton approval. Rebuild meaningful text and recurring layout as native objects, render the actual PPTX, and visually compare it with the approved review intent. Produce only the native editable PPTX.
 
-- This is an internal workflow transition, not a separate user-facing mode switch
-- If the user says "生成最终 PPT", "生成可编辑版", or equivalent after skeleton review, continue into this step automatically rather than asking the user to invoke another generic PPT skill manually
+#### Legacy Direct Export
 
-Hard rules:
-
-- If the user cares about **editability**, **PowerPoint compatibility**, **future manual revision**, or **close-to-final management delivery**, stop at the confirmed skeleton + handoff package, read `references/native-editable.md`, and continue with the native rebuild phase.
-- Do **not** claim that `svg_to_pptx.py` is sufficient for a high-fidelity editable final deck.
-- The native rebuild should recreate meaningful content as native objects whenever possible: titles, bullets, cards, tables, timelines, labels, stage blocks, and page chrome.
-- Use raster media only for true screenshots, photography, video covers, or evidence images that are not meant to be edited as layout primitives.
-- Treat `preview/index.html` as the target **structure and visual intent**, not as a guarantee of native PowerPoint text fitting.
-- Before final delivery, the native rebuild phase should render slide previews from the actual PPT build and perform a text-layout QA pass against the approved review draft.
-- If the SVG preview is mostly correct but the final `.pptx` shows unwanted wraps or overlaps, fix the native builder's text boxes, widths, spacing, and font sizing first; do not assume the SVG skeleton itself is wrong.
-- If the reviewed deck uses explicit page numbers, footer labels, or other page chrome, the native rebuild phase should author them deliberately and remove any accidental auto-generated slide-number placeholders that appear after export/import.
-- For large-number cards and KPI comparisons, the native rebuild phase should QA not only wrapping but also **visual alignment**: big numerals should not appear to sag below adjacent titles or summaries.
-
-Required handoff inputs:
-
-- `<project_path>/main_content.md`
-- `<project_path>/design_spec.md`
-- `<project_path>/style_sheet.md`
-- `<project_path>/asset_manifest.md`
-- reference style deck(s)
-- confirmed image / video / screenshot assets
-
-Handoff rule:
-
-- `ppt-master` owns structure, direction, review package, and the final native editable `.pptx`
-- `references/native-editable.md` defines the internal native rebuild rules
-- Once the project enters the native rebuild phase, do not return to `ppt-master` for layout polish unless the content structure changes substantially
-- Produce only the native editable PPTX in this run. Do not invoke the HTML or Legacy Direct Export paths.
-
----
-
-## Legacy Compatibility Mode
-
-Only use this path when the user explicitly asks `ppt-master` to export PPTX directly, or when the native editable rebuild path is unavailable.
-
-In the Step 8 router, enter this branch only when **Legacy Direct Export** is the selected Deliverable Mode. Produce only the explicitly requested compatibility PPTX; do not invoke the HTML or Native Editable Handoff paths.
-
-🚧 **GATE**: A completed SVG draft exists and the user explicitly wants direct export from `ppt-master`.
-
-> ⚠️ **Legacy export warning**: This path is a converter-oriented compatibility export. It may flatten structure, reduce editability, or diverge from the browser SVG preview once opened in PowerPoint. If the user wants a final deck that remains broadly editable, use the native editable rebuild path instead.
-
-> ⚠️ The following three sub-steps MUST be **executed individually one at a time**. Each command must complete and be confirmed successful before running the next.
-> ❌ **NEVER** put all three commands in a single code block or single shell invocation.
-
-**Legacy Step 1** — Split speaker notes:
-```bash
-python3 ${SKILL_DIR}/scripts/total_md_split.py <project_path>
-```
-
-**Legacy Step 2** — SVG post-processing (icon embedding / image crop & embed / text flattening / rounded rect to path):
-```bash
-python3 ${SKILL_DIR}/scripts/finalize_svg.py <project_path>
-```
-
-**Legacy Step 3** — Export PPTX (embeds speaker notes by default):
-```bash
-python3 ${SKILL_DIR}/scripts/svg_to_pptx.py <project_path> -s final
-# Output: exports/<project_name>_<timestamp>.pptx + exports/<project_name>_<timestamp>_svg.pptx
-```
-
-> ❌ **NEVER** use `cp` as a substitute for `finalize_svg.py` — it performs multiple critical processing steps
-> ❌ **NEVER** export directly from `svg_output/` — MUST use `-s final` to export from `svg_final/`
-> ℹ️ `svg_to_pptx.py --only native|legacy` is the only documented optional flag for the export step; use it when the user specifically wants just one variant. Do NOT pass other ad-hoc flags to the legacy post-processing commands.
+Use only when explicitly selected. Read and follow `references/legacy-export.md`; warn that it is converter-oriented and may reduce editability or diverge from browser rendering.
 
 ---
 
@@ -527,6 +465,7 @@ Before switching roles, you **MUST first read** the corresponding reference file
 | SVG image embedding | `references/svg-image-embedding.md` |
 | Single-file HTML Presentation | `references/html-presentation.md` |
 | Native editable rebuild | `references/native-editable.md` |
+| Legacy direct export | `references/legacy-export.md` |
 
 ---
 
@@ -534,7 +473,6 @@ Before switching roles, you **MUST first read** the corresponding reference file
 
 - Default draft review surface: `python3 ${SKILL_DIR}/scripts/build_preview_html.py <project_path> --source output`; its desktop/tablet outline is independently scrollable and automatically follows the active slide
 - `preview/index.html` opened via `file://` is the default review path; keep comments in the browser, use copy-all, then paste the review back to Codex
-- In `preview/index.html`, render the Previous/Next controls on the right side of the top current-slide takeaway card. Do not render a separate toolbar containing the current-slide title or review-scope guidance, and do not render navigation below or over the slide viewer.
 - Standard handoff docs: `python3 ${SKILL_DIR}/scripts/generate_skeleton_docs.py <project_path> --overwrite`
 - Legacy direct export remains available, but it is no longer the default completion path
 - **Troubleshooting**: If the user encounters issues during generation (layout overflow, export errors, blank images, etc.), recommend checking `scripts/docs/troubleshooting.md` — it covers validation failures, preview/notes-split problems, and final-deck quality issues

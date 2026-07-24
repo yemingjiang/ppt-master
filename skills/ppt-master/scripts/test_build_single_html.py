@@ -27,6 +27,7 @@ from build_single_html import (
     _validate_offline_document,
     _write_atomically,
     build_single_html,
+    check_single_html,
     load_manifest,
     render_document,
     validate_slide_fragment,
@@ -341,11 +342,33 @@ class RenderDocumentRuntimeContractTests(unittest.TestCase):
             'data-pm-action="next"',
             'data-pm-action="fullscreen"',
             'data-pm-action="notes"',
+            'data-pm-action="help"',
             'id="pmNotesPanel"',
+            'id="pmHelpPanel"',
+            'id="pmRuntimeData"',
             'id="pmProgress"',
             "prefers-reduced-motion",
         ):
             self.assertIn(hook, document)
+
+    def test_localizes_runtime_shell_from_manifest_language(self) -> None:
+        document = self.render()
+        self.assertIn('aria-label="上一页"', document)
+        self.assertIn(">演讲者备注<", document)
+        self.assertIn(">键盘 / 翻页笔<", document)
+        self.assertIn('"noNotes":"本页没有演讲者备注。"', document)
+
+        english_manifest = json.loads(json.dumps(MANIFEST))
+        english_manifest["lang"] = "en-US"
+        english = render_document(
+            english_manifest,
+            ['<section class="pm-slide" data-slide-id="01">Cover</section>'],
+            "",
+            {},
+        )
+        self.assertIn('aria-label="Previous slide"', english)
+        self.assertIn(">Speaker notes<", english)
+        self.assertIn('"noNotes":"No speaker notes for this slide."', english)
 
     def test_runtime_script_parses_in_node_and_has_navigation_contract(self) -> None:
         document = self.render()
@@ -362,17 +385,27 @@ class RenderDocumentRuntimeContractTests(unittest.TestCase):
         for behavior in (
             "ArrowLeft",
             "ArrowRight",
+            "ArrowUp",
+            "ArrowDown",
             "PageUp",
             "PageDown",
             "Space",
+            "Enter",
+            "Backspace",
+            "MediaTrackPrevious",
+            "MediaTrackNext",
             "Home",
             "End",
             "case \"f\"",
-            "case \"n\"",
+            "case \"s\"",
+            "case \"?\"",
             "pointerdown",
             "pointerup",
+            "pointercancel",
             "touchstart",
             "touchend",
+            "touchcancel",
+            "\"wheel\"",
             "isInteractiveTarget",
             "location.hash",
             "pauseInactiveMedia",
@@ -417,19 +450,27 @@ const controlButton = node("controlButton");
 const app = node("app");
 const stage = node("stage");
 const slideOne = node("slideOne", { dataset: { slideId: "01" } });
-const deck = node("deck", { querySelectorAll() { return [slideOne]; } });
+const slideTwo = node("slideTwo", { dataset: { slideId: "02" } });
+const visibleSlideChild = node("visibleSlideChild");
+const deck = node("deck", { querySelectorAll() { return [slideOne, slideTwo]; } });
 const notesCloseButton = node("notesCloseButton", { dataset: { pmAction: "notes" } });
-const controls = node("controls", { querySelector() { return controlButton; } });
+const helpButton = node("helpButton", { dataset: { pmAction: "help" } });
+const helpCloseButton = node("helpCloseButton", { dataset: { pmAction: "help" } });
+const controls = node("controls", { querySelector(selector) { return selector.includes('"help"') ? helpButton : controlButton; } });
 const pageCount = node("pageCount");
 const progress = node("progress");
-const notesPanel = node("notesPanel", { hidden: true, querySelector() { return notesCloseButton; } });
+const notesPanel = node("notesPanel", { id: "pmNotesPanel", hidden: true, querySelector() { return notesCloseButton; } });
+const helpPanel = node("helpPanel", { id: "pmHelpPanel", hidden: true, querySelector() { return helpCloseButton; } });
 const notesContent = node("notesContent");
 const notesData = node("notesData", { textContent: "{}" });
+const runtimeData = node("runtimeData", { textContent: '{"noNotes":"本页没有演讲者备注。"}' });
 let activeElement = null;
 controlButton.dataset.pmAction = "notes";
 controlButton.closest = (selector) => selector.includes("[data-pm-action]") ? controlButton : (selector.includes("pmControls") ? controls : null);
 notesCloseButton.closest = (selector) => selector.includes("[data-pm-action]") ? notesCloseButton : (selector.includes("pmNotesPanel") ? notesPanel : null);
-const elements = { pmApp: app, pmStage: stage, pmDeck: deck, pmControls: controls, pmPageCount: pageCount, pmProgress: progress, pmNotesPanel: notesPanel, pmNotesContent: notesContent, pmNotesData: notesData };
+helpButton.closest = (selector) => selector.includes("[data-pm-action]") ? helpButton : (selector.includes("pmControls") ? controls : null);
+helpCloseButton.closest = (selector) => selector.includes("[data-pm-action]") ? helpCloseButton : (selector.includes("pmHelpPanel") ? helpPanel : null);
+const elements = { pmApp: app, pmStage: stage, pmDeck: deck, pmControls: controls, pmPageCount: pageCount, pmProgress: progress, pmNotesPanel: notesPanel, pmNotesContent: notesContent, pmNotesData: notesData, pmHelpPanel: helpPanel, pmRuntimeData: runtimeData };
 const document = {
   fullscreenElement: null,
   get activeElement() { return activeElement; }, set activeElement(value) { activeElement = value; },
@@ -443,7 +484,7 @@ const window = {
   clearTimeout(id) { timerCallbacks.delete(id); },
 };
 const history = { replaceState(_state, _title, hash) { window.location.hash = hash; } };
-const context = { document, window, history, app, stage, controls, controlButton, notesCloseButton, notesPanel, slideOne, listeners, timerCallbacks };
+const context = { document, window, history, app, stage, controls, controlButton, notesCloseButton, notesPanel, helpButton, helpCloseButton, helpPanel, notesContent, slideOne, slideTwo, visibleSlideChild, listeners, timerCallbacks };
 vm.createContext(context);
 new vm.Script(process.argv[1]).runInContext(context);
 if (process.argv[3]) new vm.Script(process.argv[3]).runInContext(context);
@@ -459,10 +500,20 @@ if (process.argv[3]) new vm.Script(process.argv[3]).runInContext(context);
         result = self.run_runtime_probe(
             "#%",
             "if (!slideOne.classList.contains('pm-active')) throw new Error('slide one was not activated');"
-            "if (window.location.hash !== '#01') throw new Error('malformed hash was not normalized');",
+            "if (window.location.hash !== '#slide=01') throw new Error('malformed hash was not normalized');",
         )
 
         self.assertEqual(result.returncode, 0, result.stderr)
+
+    def test_accepts_raw_and_named_slide_hashes_and_canonicalizes_them(self) -> None:
+        for hash_value in ("#02", "#slide=02"):
+            with self.subTest(hash_value=hash_value):
+                result = self.run_runtime_probe(
+                    hash_value,
+                    "if (!slideTwo.classList.contains('pm-active')) throw new Error('slide two was not activated');"
+                    "if (window.location.hash !== '#slide=02') throw new Error('hash was not canonicalized');",
+                )
+                self.assertEqual(result.returncode, 0, result.stderr)
 
     def test_closing_notes_returns_focus_to_notes_trigger(self) -> None:
         result = self.run_runtime_probe(
@@ -471,6 +522,26 @@ if (process.argv[3]) new vm.Script(process.argv[3]).runInContext(context);
             "if (document.activeElement !== notesCloseButton) throw new Error('notes close control was not focused');"
             "listeners.document.click({ target: notesCloseButton, preventDefault() {} });"
             "if (document.activeElement !== controlButton) throw new Error('notes trigger did not regain focus');",
+        )
+
+        self.assertEqual(result.returncode, 0, result.stderr)
+
+    def test_question_mark_toggles_shortcut_help_and_returns_focus(self) -> None:
+        result = self.run_runtime_probe(
+            "",
+            "const keyEvent = { key: '?', shiftKey: true, altKey: false, ctrlKey: false, metaKey: false, target: stage, preventDefault() {} };"
+            "listeners.document.keydown(keyEvent);"
+            "if (helpPanel.hidden || document.activeElement !== helpCloseButton) throw new Error('help did not open');"
+            "listeners.document.click({ target: helpCloseButton, preventDefault() {} });"
+            "if (!helpPanel.hidden || document.activeElement !== helpButton) throw new Error('help did not close cleanly');",
+        )
+
+        self.assertEqual(result.returncode, 0, result.stderr)
+
+    def test_missing_notes_uses_localized_runtime_copy(self) -> None:
+        result = self.run_runtime_probe(
+            "",
+            "if (notesContent.textContent !== '本页没有演讲者备注。') throw new Error('localized no-notes copy missing');",
         )
 
         self.assertEqual(result.returncode, 0, result.stderr)
@@ -488,8 +559,44 @@ if (process.argv[3]) new vm.Script(process.argv[3]).runInContext(context);
         result = self.run_runtime_probe(
             "",
             "app.classList.add('pm-controls-hidden');"
-            "listeners.stage.pointerdown({ pointerType: 'mouse', clientX: 10, target: stage });"
+            "listeners.stage.pointerdown({ pointerType: 'mouse', clientX: 10, clientY: 10, target: stage });"
             "if (app.classList.contains('pm-controls-hidden')) throw new Error('stage pointer did not reveal controls');",
+        )
+
+        self.assertEqual(result.returncode, 0, result.stderr)
+
+    def test_click_on_visible_slide_content_advances_once(self) -> None:
+        result = self.run_runtime_probe(
+            "",
+            "listeners.stage.click({ target: visibleSlideChild });"
+            "if (!slideTwo.classList.contains('pm-active')) throw new Error('visible slide click did not advance');",
+        )
+
+        self.assertEqual(result.returncode, 0, result.stderr)
+
+    def test_powerpoint_and_remote_keyboard_navigation(self) -> None:
+        result = self.run_runtime_probe(
+            "",
+            "const keyEvent = (key, shiftKey = false) => ({ key, shiftKey, altKey: false, ctrlKey: false, metaKey: false, target: stage, preventDefault() {} });"
+            "listeners.document.keydown(keyEvent('PageDown'));"
+            "if (!slideTwo.classList.contains('pm-active')) throw new Error('PageDown did not advance');"
+            "listeners.document.keydown(keyEvent('p'));"
+            "if (!slideOne.classList.contains('pm-active')) throw new Error('P did not go back');"
+            "listeners.document.keydown(keyEvent('n'));"
+            "if (!slideTwo.classList.contains('pm-active')) throw new Error('N did not advance');"
+            "listeners.document.keydown(keyEvent(' ' , true));"
+            "if (!slideOne.classList.contains('pm-active')) throw new Error('Shift+Space did not go back');",
+        )
+
+        self.assertEqual(result.returncode, 0, result.stderr)
+
+    def test_mouse_wheel_navigates_and_prevents_page_scroll(self) -> None:
+        result = self.run_runtime_probe(
+            "",
+            "let prevented = false;"
+            "listeners.stage.wheel({ target: stage, deltaX: 0, deltaY: 120, ctrlKey: false, preventDefault() { prevented = true; } });"
+            "if (!prevented) throw new Error('wheel scrolling was not contained');"
+            "if (!slideTwo.classList.contains('pm-active')) throw new Error('wheel did not advance');",
         )
 
         self.assertEqual(result.returncode, 0, result.stderr)
@@ -961,6 +1068,11 @@ class BuildSingleHtmlTests(ProjectFixture):
         self.assertEqual(result["output_file_url"], output.resolve().as_uri())
         self.assertEqual(result["slides"], 2)
         self.assertGreaterEqual(result["embedded_assets"], 4)
+        self.assertGreaterEqual(result["media"]["unique_assets"], 2)
+        self.assertEqual(
+            result["media"]["reference_count"], result["embedded_assets"]
+        )
+        self.assertGreater(result["media"]["embedded_payload_bytes"], 0)
         self.assertEqual(result["warnings"], [])
         self.assertIn("Opening speaker notes", document)
         self.assertIn('id="pmNotesPanel"', document)
@@ -1015,6 +1127,29 @@ class BuildSingleHtmlTests(ProjectFixture):
         self.assertIn("02", message)
         self.assertIn("missing-notes", message)
         self.assertIn(str(self.project / "notes" / "total.md"), message)
+        self.assertIn("omit notes_key", message)
+
+    def test_notes_key_defaults_to_slide_id(self) -> None:
+        manifest = json.loads(json.dumps(MANIFEST))
+        for slide in manifest["slides"]:
+            slide.pop("notes_key", None)
+        self.write_manifest(manifest)
+
+        result = check_single_html(self.project)
+
+        self.assertEqual(result["status"], "ok")
+        self.assertEqual(result["mode"], "check")
+
+    def test_check_validates_without_writing_export(self) -> None:
+        output = self.project / "exports" / f"{self.project.name}.single.html"
+
+        result = check_single_html(self.project)
+
+        self.assertEqual(result["status"], "ok")
+        self.assertEqual(result["mode"], "check")
+        self.assertEqual(result["slides"], 2)
+        self.assertGreater(result["estimated_bytes"], 0)
+        self.assertFalse(output.exists())
 
     def test_warns_when_the_generated_document_exceeds_100_mb(self) -> None:
         (self.project / "html_output" / "presentation.css").write_text(
@@ -1023,7 +1158,32 @@ class BuildSingleHtmlTests(ProjectFixture):
 
         result = build_single_html(self.project)
 
+        self.assertTrue(any("50 MB" in warning for warning in result["warnings"]))
         self.assertTrue(any("100 MB" in warning for warning in result["warnings"]))
+
+    def test_reports_large_gif_without_transcoding_it(self) -> None:
+        gif = self.project / "images" / "demo.gif"
+        gif.write_bytes(b"GIF89a-demo")
+        (self.project / "html_output" / "slides" / "02_overview.html").write_text(
+            '<section class="pm-slide" data-slide-id="02">'
+            '<img src="../../images/demo.gif"></section>',
+            encoding="utf-8",
+        )
+
+        with (
+            patch("build_single_html._LARGE_ASSET_WARNING_BYTES", 4),
+            patch("build_single_html._LARGE_GIF_WARNING_BYTES", 4),
+        ):
+            result = check_single_html(self.project)
+
+        self.assertTrue(any("Large embedded asset" in item for item in result["warnings"]))
+        self.assertTrue(any("do not transcode automatically" in item for item in result["warnings"]))
+        gif_entry = next(
+            item
+            for item in result["media"]["largest_assets"]
+            if item["path"] == "images/demo.gif"
+        )
+        self.assertEqual(gif_entry["references"], 1)
 
     def test_cli_json_is_one_object_with_clean_success_stderr(self) -> None:
         completed = subprocess.run(
@@ -1038,6 +1198,48 @@ class BuildSingleHtmlTests(ProjectFixture):
         self.assertEqual(payload["status"], "ok")
         self.assertEqual(payload["slides"], 2)
         self.assertEqual(completed.stderr, "")
+
+    def test_cli_json_check_is_machine_readable_and_does_not_write(self) -> None:
+        completed = subprocess.run(
+            [
+                sys.executable,
+                str(SCRIPT_DIR / "build_single_html.py"),
+                str(self.project),
+                "--check",
+                "--json",
+            ],
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+
+        self.assertEqual(completed.returncode, 0, completed.stderr)
+        payload = json.loads(completed.stdout)
+        self.assertEqual(payload["status"], "ok")
+        self.assertEqual(payload["mode"], "check")
+        self.assertFalse(
+            (self.project / "exports" / f"{self.project.name}.single.html").exists()
+        )
+
+    def test_cli_rejects_check_with_output_as_json_error(self) -> None:
+        completed = subprocess.run(
+            [
+                sys.executable,
+                str(SCRIPT_DIR / "build_single_html.py"),
+                str(self.project),
+                "--check",
+                "--output",
+                str(self.project / "exports" / "x.html"),
+                "--json",
+            ],
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+
+        self.assertEqual(completed.returncode, 1)
+        payload = json.loads(completed.stdout)
+        self.assertIn("--check cannot be combined", payload["error"])
 
     def test_cli_success_reports_human_readable_build_summary(self) -> None:
         completed = subprocess.run(
@@ -1066,6 +1268,7 @@ class BuildSingleHtmlTests(ProjectFixture):
 
         self.assertEqual(completed.returncode, 0, completed.stderr)
         for example in (
+            "python3 build_single_html.py projects/quarterly-review --check --json",
             "python3 build_single_html.py projects/quarterly-review",
             "python3 build_single_html.py projects/quarterly-review --output exports/review.html",
             "python3 build_single_html.py projects/quarterly-review --json",

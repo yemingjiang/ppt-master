@@ -56,19 +56,19 @@ Final polished deck when Native Editable Handoff is selected:
 Final offline HTML presentation:
 
 ```bash
+python3 scripts/prepare_single_html.py <project_path> --dry-run --json
+python3 scripts/prepare_single_html.py <project_path>
+python3 scripts/build_single_html.py <project_path> --check --json
 python3 scripts/build_single_html.py <project_path>
+python3 scripts/qa_single_html.py <project_path> --screenshots <qa_dir> --json
 # Output: <project_path>/exports/<project_name>.single.html
 ```
 
-Before authoring `html_output/`, read `../references/html-presentation.md`. The builder packages `html_output/presentation.json`, slide fragments, notes, and project-local resources into the final offline artifact.
+Before authoring `html_output/`, read `../references/html-presentation.md`. The initializer creates deterministic sources from approved SVGs; `--force` is required to refresh existing generated files. The builder packages the manifest, slide fragments, notes, and project-local resources into the offline artifact. Its size warnings are advisory and it never transcodes media. The QA command runs the input matrix in a real browser and can produce screenshots/contact sheets for required visual inspection.
 
 Legacy direct export from `ppt-master` (explicit request only):
 
-```bash
-python3 scripts/total_md_split.py <project_path>
-python3 scripts/finalize_svg.py <project_path>
-python3 scripts/svg_to_pptx.py <project_path> -s final
-```
+Read [Legacy Direct Export](../references/legacy-export.md) and run its three commands individually, confirming each before starting the next.
 
 Repository update:
 
@@ -84,7 +84,7 @@ python3 scripts/update_repo.py
 | Project management | `project_manager.py`, `batch_validate.py`, `generate_examples_index.py`, `error_helper.py`, `pptx_template_import.py`, `clean_pptx_placeholders.py` | [docs/project.md](./docs/project.md) |
 | Skeleton docs | `generate_skeleton_docs.py` | this README |
 | Draft preview | `build_preview_html.py` | this README |
-| Final offline HTML | `build_single_html.py` | [../references/html-presentation.md](../references/html-presentation.md) |
+| Final offline HTML | `prepare_single_html.py`, `build_single_html.py`, `qa_single_html.py`, `qa_single_html.cjs` | [../references/html-presentation.md](../references/html-presentation.md) |
 | SVG pipeline / legacy export | `finalize_svg.py`, `svg_to_pptx.py`, `total_md_split.py`, `svg_quality_checker.py` | [docs/svg-pipeline.md](./docs/svg-pipeline.md) |
 | Image tools | `image_gen.py` (local fallback), `analyze_images.py`, `gemini_watermark_remover.py` | [docs/image.md](./docs/image.md) |
 | Repo maintenance | `update_repo.py` | README install/update section |
@@ -119,7 +119,11 @@ python3 scripts/build_preview_html.py <project_path> --source output
 Final offline HTML:
 
 ```bash
+python3 scripts/prepare_single_html.py <project_path> --dry-run --json
+python3 scripts/prepare_single_html.py <project_path>
+python3 scripts/build_single_html.py <project_path> --check --json
 python3 scripts/build_single_html.py <project_path>
+python3 scripts/qa_single_html.py <project_path> --screenshots <qa_dir> --json
 ```
 
 Template source import:
@@ -139,13 +143,7 @@ python3 scripts/clean_pptx_placeholders.py exports/final_deck.pptx --in-place --
 
 Legacy post-processing and export:
 
-```bash
-python3 scripts/total_md_split.py <project_path>
-python3 scripts/finalize_svg.py <project_path>
-python3 scripts/svg_to_pptx.py <project_path> -s final
-```
-
-Treat this as a compatibility export path, not the preferred route for high-fidelity editable delivery.
+Follow [Legacy Direct Export](../references/legacy-export.md). Treat it as a compatibility path, not the preferred route for high-fidelity editable delivery.
 
 Image generation:
 
@@ -190,4 +188,4 @@ python3 scripts/update_repo.py --skip-pip
 - [Troubleshooting](./docs/troubleshooting.md)
 - [AGENTS Guide](../../../AGENTS.md)
 
-_Last updated: 2026-04-21_
+_Last updated: 2026-07-24_

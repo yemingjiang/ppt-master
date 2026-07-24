@@ -13,30 +13,45 @@
 </head>
 <body>
   <main class="pm-app" id="pmApp">
-    <div class="pm-stage" id="pmStage" aria-label="Presentation">
+    <div class="pm-stage" id="pmStage" aria-label="{{PRESENTATION_LABEL}}">
       <div class="pm-deck" id="pmDeck">
 {{SLIDES}}
       </div>
     </div>
 
-    <div class="pm-controls" id="pmControls" aria-label="Presentation controls">
-      <button type="button" data-pm-action="previous" aria-label="Previous slide">←</button>
+    <div class="pm-controls" id="pmControls" aria-label="{{CONTROLS_LABEL}}">
+      <button type="button" data-pm-action="previous" aria-label="{{PREVIOUS_LABEL}}">←</button>
       <span class="pm-page-count" id="pmPageCount" aria-live="polite"></span>
-      <button type="button" data-pm-action="next" aria-label="Next slide">→</button>
-      <button type="button" data-pm-action="fullscreen" aria-label="Toggle fullscreen">⛶</button>
-      <button type="button" data-pm-action="notes" aria-label="Toggle speaker notes">Notes</button>
+      <button type="button" data-pm-action="next" aria-label="{{NEXT_LABEL}}">→</button>
+      <button type="button" data-pm-action="fullscreen" aria-label="{{FULLSCREEN_LABEL}}">⛶</button>
+      <button type="button" data-pm-action="notes" aria-label="{{NOTES_TOGGLE_LABEL}}">{{NOTES_LABEL}}</button>
+      <button type="button" data-pm-action="help" aria-label="{{HELP_TOGGLE_LABEL}}">?</button>
     </div>
     <div class="pm-progress-track" aria-hidden="true"><div id="pmProgress"></div></div>
 
     <aside class="pm-notes-panel" id="pmNotesPanel" aria-labelledby="pmNotesTitle" aria-hidden="true" hidden>
-      <div class="pm-notes-header">
-        <h2 id="pmNotesTitle">Speaker notes</h2>
-        <button type="button" data-pm-action="notes" aria-label="Close speaker notes">×</button>
+      <div class="pm-panel-header">
+        <h2 id="pmNotesTitle">{{NOTES_TITLE}}</h2>
+        <button type="button" data-pm-action="notes" aria-label="{{NOTES_CLOSE_LABEL}}">×</button>
       </div>
       <div id="pmNotesContent"></div>
     </aside>
+
+    <aside class="pm-help-panel" id="pmHelpPanel" aria-labelledby="pmHelpTitle" aria-hidden="true" hidden>
+      <div class="pm-panel-header">
+        <h2 id="pmHelpTitle">{{HELP_TITLE}}</h2>
+        <button type="button" data-pm-action="help" aria-label="{{HELP_CLOSE_LABEL}}">×</button>
+      </div>
+      <dl class="pm-shortcuts">
+        <div><dt>{{HELP_KEYBOARD}}</dt><dd>{{HELP_KEYBOARD_DETAIL}}</dd></div>
+        <div><dt>{{HELP_MOUSE}}</dt><dd>{{HELP_MOUSE_DETAIL}}</dd></div>
+        <div><dt>{{HELP_TOUCH}}</dt><dd>{{HELP_TOUCH_DETAIL}}</dd></div>
+        <div><dt>{{HELP_PANELS}}</dt><dd>{{HELP_PANELS_DETAIL}}</dd></div>
+      </dl>
+    </aside>
   </main>
   <script id="pmNotesData" type="application/json">{{NOTES_JSON}}</script>
+  <script id="pmRuntimeData" type="application/json">{{RUNTIME_DATA_JSON}}</script>
   <script>
 {{RUNTIME_JS}}
   </script>
