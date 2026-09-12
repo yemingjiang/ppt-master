@@ -147,9 +147,9 @@ AI:  Sure. Let's confirm the design spec:
 The AI handles the full pipeline end-to-end — content analysis, design spec, SVG skeleton generation, support files, and HTML review draft — then **pauses for your review**. This is where you collaborate:
 
 1. Open `preview/index.html` in the Codex app (the AI gives you a clickable link).
-2. Flip through the slides and **annotate them directly in the browser** — comments are saved locally as you go. Adjust titles, takeaways, bullets, assets, page order, or style direction.
-3. Click **"Copy all comments"** and paste them back into the chat.
-4. The AI applies your comments, rebuilds the draft, and you repeat until the skeleton is right.
+2. **Edit mapped slide text and speaker notes directly** — drafts are editable as soon as they open. Add comments for changes to structure, assets or layout. Everything stays in your browser until you copy it.
+3. Click **“Copy all changes” / “复制所有修改”** and paste the Markdown change list into the chat. It groups original/new wording, changed note passages and comments by slide, using short references instead of verbose JSON. No server or file transfer is needed; if copying is blocked, a dialog lets you copy the text manually.
+4. The AI processes your feedback and rebuilds the draft. Only processed copied changes are cleared; anything you edited after copying stays pending.
 
 Each run has exactly one Deliverable Mode. Review Skeleton: stop after Step 7 with no final target. Single-file HTML Presentation produces only final HTML; Native Editable Handoff produces only native editable PPTX; Legacy Direct Export produces only explicit compatibility PPTX.
 

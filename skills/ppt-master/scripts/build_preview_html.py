@@ -116,6 +116,11 @@ def parse_args() -> argparse.Namespace:
         action="store_true",
         help="Print machine-readable JSON summary instead of human-readable text.",
     )
+    edit_mode = parser.add_mutually_exclusive_group()
+    edit_mode.add_argument('--editable', action='store_true', default=None,
+                           help='Build an offline, always-editable review (default for raw SVGs). Copy all changes back to Codex.')
+    edit_mode.add_argument('--read-only', dest='editable', action='store_false',
+                           help='Build a read-only preview even when an editing manifest exists.')
     return parser.parse_args()
 
 
@@ -215,6 +220,7 @@ def build_html(
     strings: dict[str, str],
     project_key: str,
     review_build_id: str,
+    unified_review: bool = False,
 ) -> str:
     escaped_title = html.escape(title)
     nav_items = []
@@ -235,7 +241,7 @@ def build_html(
     first_title = html.escape(entries[0]["title"]) if entries else "No slides"
 
     return f"""<!doctype html>
-<html lang="en">
+<html lang="{'zh-CN' if strings.get('prev') == '上一页' else 'en'}">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
@@ -564,6 +570,7 @@ def build_html(
         min-height: 100dvh;
         overflow: visible;
       }}
+      .sidebar {{ position: static; }}
       .inspector {{
         grid-column: 1 / -1;
         height: auto;
@@ -639,16 +646,7 @@ def build_html(
       </div>
     </main>
     <aside class="inspector">
-      <section class="panel">
-        <h3 class="panel-title">{html.escape(strings["notes"])}</h3>
-        <div class="panel-text" id="notesScript"></div>
-        <div class="chips" id="notesMeta"></div>
-      </section>
-      <section class="panel">
-        <h3 class="panel-title">{html.escape(strings["assets"])}</h3>
-        <div class="asset-list" id="assetList"></div>
-      </section>
-      <section class="panel">
+      <section class="panel" id="commentsPanel">
         <h3 class="panel-title">{html.escape(strings["comments"])}</h3>
         <div class="panel-text">{html.escape(strings["comment_hint"])}</div>
         <textarea id="commentBox" placeholder="{html.escape(strings["comment_placeholder"])}"></textarea>
@@ -657,6 +655,15 @@ def build_html(
         </div>
         <div class="save-state" id="saveState">{html.escape(strings["saved"])}</div>
       </section>
+      <section class="panel" id="notesPanel">
+        <h3 class="panel-title">{html.escape(strings["notes"])}</h3>
+        <div class="panel-text" id="notesScript"></div>
+        <div class="chips" id="notesMeta"></div>
+      </section>
+      <section class="panel" id="assetsPanel">
+        <h3 class="panel-title">{html.escape(strings["assets"])}</h3>
+        <div class="asset-list" id="assetList"></div>
+      </section>
     </aside>
   </div>
   <script>
@@ -664,6 +671,7 @@ def build_html(
     const strings = {strings_json};
     const projectKey = {json.dumps(project_key)};
     const reviewBuildId = {json.dumps(review_build_id)};
+    const unifiedReview = {json.dumps(unified_review)};
     const storagePrefix = `ppt-master-preview-comments::${{projectKey}}::`;
     const storageKey = `${{storagePrefix}}${{reviewBuildId}}`;
     const viewer = document.getElementById('viewer');
@@ -680,23 +688,6 @@ def build_html(
     const links = Array.from(document.querySelectorAll('.slide-link'));
     let current = 0;
 
-    function cleanupStaleCommentKeys() {{
-      try {{
-        const staleKeys = [];
-        for (let i = 0; i < localStorage.length; i += 1) {{
-          const key = localStorage.key(i);
-          if (key && key.startsWith(storagePrefix) && key !== storageKey) {{
-            staleKeys.push(key);
-          }}
-        }}
-        staleKeys.forEach((key) => {{
-          localStorage.removeItem(key);
-        }});
-      }} catch (_error) {{
-        // Ignore localStorage cleanup failures and continue with current-session comments only.
-      }}
-    }}
-
     function loadComments() {{
       try {{
         return JSON.parse(localStorage.getItem(storageKey) || '{{}}');
@@ -705,8 +696,8 @@ def build_html(
       }}
     }}
 
-    cleanupStaleCommentKeys();
-    let comments = loadComments();
+    // Rebuilds never delete unprocessed feedback. The offline editor uses receipts.
+    let comments = unifiedReview ? {{}} : loadComments();
 
     function setSaveState(text) {{
       saveState.textContent = text;
@@ -960,6 +951,7 @@ def render_preview(
     source: str = "output",
     output_path: Path | None = None,
     title: str | None = None,
+    editable: bool | None = None,
 ) -> dict[str, object]:
     project_path = project_path.expanduser().resolve()
     if not project_path.exists():
@@ -973,20 +965,27 @@ def render_preview(
     output_path = output_path.expanduser().resolve() if output_path else (project_path / "preview" / "index.html")
     output_path.parent.mkdir(parents=True, exist_ok=True)
 
+    from preview_editing import prepare_manifest, inject_editor
+    if editable is None:
+        editable = source == 'output'
+    if editable and source != 'output':
+        raise ValueError('Editable previews must use --source output; final SVGs are derived artifacts.')
+    edit_manifest = prepare_manifest(project_path) if editable else None
     entries, project_name, language = build_entries(project_path, output_path, source_dir_name)
     strings = STRINGS[language]
     resolved_title = title or (f"{project_name} 审稿预览" if language == "zh" else f"{project_name} Draft Review")
     review_build_id = str(time.time_ns())
-    output_path.write_text(
-        build_html(
+    document = build_html(
             resolved_title,
             entries,
             strings,
             project_path.name,
             review_build_id,
-        ),
-        encoding="utf-8",
-    )
+            unified_review=bool(edit_manifest),
+        )
+    if edit_manifest:
+        document = inject_editor(document, edit_manifest)
+    output_path.write_text(document, encoding='utf-8')
 
     return {
         "status": "ok",
@@ -996,6 +995,7 @@ def render_preview(
         "output_file_url": output_path.as_uri(),
         "review_build_id": review_build_id,
         "slides": len(entries),
+        "editable": bool(editable),
     }
 
 
@@ -1008,6 +1008,7 @@ def main() -> int:
         source=args.source,
         output_path=output_path,
         title=args.title,
+        editable=args.editable,
     )
     if args.json:
         print(json.dumps(payload, ensure_ascii=False, indent=2))

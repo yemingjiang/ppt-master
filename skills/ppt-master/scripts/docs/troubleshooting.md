@@ -21,11 +21,15 @@ python3 scripts/project_manager.py validate <project_path>
 python3 scripts/build_preview_html.py <project_path> --source output
 ```
 
-4. If you specifically need to inspect a raw `svg_output/*.svg` and the browser blocks external image references, fall back to a local server:
+4. If an image is missing, check its path relative to the source SVG and confirm the asset exists. Use the offline HTML review surface; for portable drafts, embed the asset using the SVG image-embedding reference. Do not introduce a local service for the review workflow.
 
-```bash
-python3 -m http.server --directory <svg_output_path> 8000
-```
+## Offline Draft Changes
+
+- Mapped text and Markdown notes are editable by default. For text that does not respond to clicks, inspect the manifest's read-only list and repair its source binding; see [editable-review.md](../../references/editable-review.md).
+- “Copy all changes” produces a Markdown change list with direct edits, changed note passages and comments. Older JSON records remain supported. If browser clipboard access fails, copy the full text from the fallback dialog and paste it into Codex.
+- Copying does not save project files or clear drafts. Only processed feedback receipts in a rebuilt preview clear matching copied snapshots; later edits remain.
+- If a short reference or baseline cannot be resolved, use the originating project with its `preview/review_index.json` and `preview/review_baselines/` intact. Do not substitute the latest notes as the missing original.
+- Source conflicts are inspected and resolved in Codex. Preserve the original copied record rather than changing its baseline or record ID.
 
 ## Speaker Notes Do Not Split
 

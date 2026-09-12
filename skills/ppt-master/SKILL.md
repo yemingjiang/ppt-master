@@ -109,6 +109,7 @@ description: Use when asked to create a presentation outline, review draft, fina
 | `${SKILL_DIR}/scripts/image_gen.py` | Local fallback AI image generation CLI (prefer Codex `image_gen` tool in Codex sessions) |
 | `${SKILL_DIR}/scripts/generate_skeleton_docs.py` | Generate standard `main_content.md`, `style_sheet.md`, and `asset_manifest.md` |
 | `${SKILL_DIR}/scripts/build_preview_html.py` | Build lightweight HTML review draft from `svg_output/` or `svg_final/` |
+| `${SKILL_DIR}/scripts/edit_preview.py` | Inspect/apply copied offline changes and acknowledge processed feedback |
 | `${SKILL_DIR}/scripts/qa_preview_html.py` | Browser-QA a review preview and capture selected slide screenshots |
 | `${SKILL_DIR}/scripts/check_terminology.py` | Check optional project terminology rules without rewriting content |
 | `${SKILL_DIR}/scripts/prepare_single_html.py` | Deterministically scaffold final HTML sources from approved SVGs |
@@ -135,7 +136,9 @@ By default, `ppt-master` should leave the project in a state that is easy for hu
 - `<project_path>/svg_output/` — raw visual draft pages
 - `<project_path>/preview/index.html` — preferred fast review surface
 
-When delivering a reviewable draft in Codex desktop, the response should include a clickable absolute link to `<project_path>/preview/index.html`. Default to the static file preview workflow: users keep comments in the browser, use "复制全部批注", then paste that review back into Codex for updates.
+When delivering a reviewable draft in Codex desktop, include a clickable absolute link to `<project_path>/preview/index.html`. Raw-SVG previews are offline and editable by default: click mapped slide text, edit Markdown speaker notes directly, and add comments. Do not add an edit-mode button or a local server. Use one **“复制所有修改” / “Copy all changes”** button to copy a concise Markdown change list grouped by slide: original/new text, changed note passages (including any changed key points or duration), and comments. Include only changed sections and short project/version/slide/text/record references; retain full IDs and note baselines in the project. Whole-note rewrites include the new text once. Keep legacy JSON input compatible. No downloaded edit file is required. If clipboard access fails, show the complete record in a selectable text dialog. Read `references/editable-review.md` for bindings, processing receipts, conflict handling, and verification.
+
+Copying retains browser drafts. Rebuilding must preserve unprocessed edits and comments; only explicit processing receipts clear their corresponding copied snapshots. Anything edited after copying must survive, including a change back to the original wording. Source files become authoritative after Codex applies or resolves the feedback. `--read-only` is an explicit diagnostic/compatibility option, not a user-facing edit toggle.
 
 Only create `<project_path>/exports/*.pptx` before the native rebuild phase when the user explicitly asks for direct legacy export or the native editable rebuild path is unavailable.
 
@@ -349,8 +352,10 @@ Read references/executor-consultant-top.md # Top consulting style (MBB level)
 - Generate speaker notes → `<project_path>/notes/total.md`
 - Build lightweight HTML review draft → `<project_path>/preview/index.html`
   - Recommended command: `python3 ${SKILL_DIR}/scripts/build_preview_html.py <project_path> --source output`
+  - Before enabling text edits, bind audience-facing text to `main_content.md` fields with stable SVG IDs as described in `references/editable-review.md`. Ambiguous or unsupported text remains read-only until the mapping is completed; do not guess by replacing repeated strings.
   - `preview/index.html` is the default review entry. In Codex desktop, return its absolute file link in the response.
-  - Follow the complete preview interaction, scrolling, containment, comment-reset, and targeted browser-QA contract in `references/review-loop.md`.
+  - Place the comment input and “Copy all changes” action before speaker notes in the review sidebar; assets follow notes. Text and notes are editable immediately, with only subtle hover/focus cues.
+  - Follow the complete preview interaction, scrolling, containment, feedback persistence, and targeted browser-QA contract in `references/review-loop.md`.
 - Only generate `preview/draft.pdf` when the user explicitly asks for PDF review
 
 **✅ Checkpoint — Confirm the skeleton package is fully generated. Proceed to Step 7 human review**:
@@ -374,6 +379,8 @@ Read and follow `references/review-loop.md` for the complete allowed iteration s
 During this loop:
 
 - Prefer reviewing `preview/index.html`
+- Process the complete copied record using `references/editable-review.md`: inspect it, dry-run/apply direct edits, address its comments, then acknowledge only the categories actually processed. Treat comments as user feedback for Codex; applying text does not execute or resolve comments automatically.
+- Resolve source-version conflicts in Codex using original/current/edited values. Preserve the original copied record and never change its ID or baseline to bypass a conflict. Rebuild with processing receipts and verify the revised pages. Before final production, obtain any browser-only edits through “Copy all changes”; do not reconstruct accepted wording from stale conversation drafts or rerun old authoring scripts that overwrite user edits.
 - Use `draft.pdf` only when the user explicitly prefers a static review file
 - Do not begin any final production before Step 7 confirms the skeleton is stable
 - Treat the reviewed SVG/HTML draft as the **approved structure and visual intent**, not as a promise that direct SVG export will equal the final editable PPT
@@ -457,6 +464,7 @@ Before switching roles, you **MUST first read** the corresponding reference file
 | Image layout specification | `references/image-layout-spec.md` |
 | SVG image embedding | `references/svg-image-embedding.md` |
 | Skeleton review and feedback loop | `references/review-loop.md` |
+| Editable reviews and source persistence | `references/editable-review.md` |
 | Single-file HTML Presentation | `references/html-presentation.md` |
 | Native editable rebuild | `references/native-editable.md` |
 | Legacy direct export | `references/legacy-export.md` |

@@ -83,6 +83,7 @@ python3 scripts/update_repo.py
 | Project management | `project_manager.py`, `batch_validate.py`, `generate_examples_index.py`, `error_helper.py`, `pptx_template_import.py`, `clean_pptx_placeholders.py` | [docs/project.md](./docs/project.md) |
 | Skeleton docs | `generate_skeleton_docs.py` | this README |
 | Draft preview | `build_preview_html.py`, `qa_preview_html.py`, `qa_preview_html.cjs` | [../references/review-loop.md](../references/review-loop.md) |
+| Offline editable review | `edit_preview.py`, `preview_editing.py`, `review_packets.py`, `review_markdown.py` | [../references/editable-review.md](../references/editable-review.md) |
 | Final offline HTML | `finalize_single_html.py`, `check_terminology.py`, `prepare_single_html.py`, `single_html_state.py`, `optimize_single_html_media.py`, `build_single_html.py`, `qa_single_html.py`, `qa_single_html.cjs` | [../references/html-presentation.md](../references/html-presentation.md) |
 | SVG pipeline / legacy export | `finalize_svg.py`, `svg_to_pptx.py`, `total_md_split.py`, `svg_quality_checker.py` | [docs/svg-pipeline.md](./docs/svg-pipeline.md) |
 | Image tools | `image_gen.py` (local fallback), `analyze_images.py`, `gemini_watermark_remover.py` | [docs/image.md](./docs/image.md) |
@@ -172,8 +173,10 @@ python3 scripts/update_repo.py --skip-pip
 - Treat `preview/index.html` as the main review entry point. In Codex desktop, return its absolute file URL to the user.
 - Run `qa_preview_html.py` after building or revising a preview; include the changed slides in `--slides` and inspect its contact sheet.
 - Treat `preview/index.html` as a review artifact, not the final HTML. For the selected HTML final target, author `html_output/` under `references/html-presentation.md` and run `finalize_single_html.py`.
-- `preview/index.html` opened via `file://` should support the no-server review loop: keep comments in local browser storage, then use copy-all and paste the review comments back to Codex
-- After Codex applies the pasted review and rebuilds `preview/index.html`, treat that rebuilt file as the next review round; old local comments should not carry over
+- Raw-SVG `preview/index.html` drafts opened via `file://` are editable by default: click mapped text, edit full Markdown notes, and add comments. No edit toggle or online mode is provided.
+- Use “Copy all changes” to copy a Markdown change list grouped by slide: original/new wording, changed note passages and comments, with short references. Full identities and note baselines stay in the project; whole-note rewrites carry new text once. Paste this directly into Codex. Copying requires no file transfer and keeps drafts in the browser. A selectable text dialog handles clipboard failure.
+- `edit_preview.py inspect/apply/ack <project_path> --stdin --json` processes the Markdown change list and remains compatible with legacy JSON input. Apply supports `--dry-run`; acknowledgment distinguishes processed direct edits from processed comments. See [editable-review.md](../references/editable-review.md).
+- Rebuilt previews clear only acknowledged copied snapshots. Unprocessed feedback and edits made after copying must remain, even if the user reverted to the original wording.
 - Prefer continuing from the confirmed skeleton package into the internal native rebuild phase for final editable production
 - Prefer `svg_final/` over `svg_output/` only when doing legacy direct export
 - Never claim that `svg_to_pptx.py` is equivalent to a native editable final PPT when the user cares about manual editing or PowerPoint fidelity
