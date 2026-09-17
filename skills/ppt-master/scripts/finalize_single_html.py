@@ -38,6 +38,10 @@ def finalize_single_html(
     dry_run: bool = False,
 ) -> dict[str, object]:
     project_path = project_path.resolve()
+    from saved_html import sync_saved_html
+    saved = sync_saved_html(project_path, dry_run=dry_run)
+    if dry_run and saved['pending_changes']:
+        raise FinalizationError('Saved HTML edits are pending. Rebuild the preview before export dry-run.')
     terminology = check_terminology(project_path)
     if terminology["status"] == "issues":
         first = terminology["issues"][0]

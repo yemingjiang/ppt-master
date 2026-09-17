@@ -1,6 +1,6 @@
 # Offline editable review previews
 
-Raw-SVG review drafts are editable by default. Click mapped slide text to edit it, edit full Markdown speaker notes directly, and leave comments. The sidebar has one **“复制所有修改” / “Copy all changes”** button plus undo. There is no edit-mode button, online mode, local service, direct browser-to-file save, or downloaded modification package. Layout dragging, new/deleted pages and media replacement remain Codex-assisted review work.
+Raw-SVG review drafts are editable by default. Click mapped slide text, edit full Markdown speaker notes, and leave comments. The sidebar provides **“保存 HTML” / “Save HTML”**, a copy action and undo. In supported Chrome browsers, saving writes text and notes into the user-selected original HTML. After saving, **“复制批注” / “Copy comments”** sends only feedback to Codex. Unsaved content retains **“复制所有修改” / “Copy all changes”** as a fallback. There is no server, edit-mode switch or downloaded modification package. Layout changes, adding/deleting pages and media replacement remain Codex-assisted work.
 
 ## Build and open
 
@@ -9,6 +9,16 @@ python3 ${SKILL_DIR}/scripts/build_preview_html.py <project_path> --source outpu
 ```
 
 Open the resulting `preview/index.html` as a local file. Only `svg_output/` is editable, and it requires `main_content.md`. The optional `--editable` flag is retained for compatibility; `--read-only` explicitly builds a diagnostic/read-only view without deleting drafts or the manifest. This review surface does not select final HTML or PPTX production.
+
+## Authorized offline file saving
+
+- Serve nothing: open `preview/index.html` through `file://` in Chrome. Detect secure-context and `showOpenFilePicker` support at runtime; disable save with a clear fallback in unsupported browsers, including embedded browsers that lack the API.
+- The first Save click in each tab/session opens a picker. The user selects the **currently opened HTML** and authorizes writing. Reuse the handle in memory for later saves; reopening requires selecting it again. Never claim that merely opening a local HTML grants write access.
+- First-time automatic positioning at an arbitrary local path is not available: `startIn` only accepts well-known directories or previously obtained handles. Do not pass a file URL/path as `startIn`. When Save HTML needs a picker, automatically copy the original native path from the current `file://` URL (without query/hash) before opening it. Use a synchronous copy first to preserve user activation, with async clipboard fallback. If copying fails, select the visible path and ask the user to copy it and click Save again; if activation expires during permission handling, retain the copied path and ask for a fresh click. Reusing a granted file handle must not touch the clipboard. Do not add a separate path-copy button. Retain a selectable path only as the copy-failure fallback, with macOS ⌘⇧G instructions to reveal the native picker’s path input. The web page cannot restyle the native picker or force that input to appear. Use a stable project-specific picker `id` so Chrome can remember the previously selected directory; this is a browser hint, not guaranteed first-time positioning or automatic authorization.
+- Verify project, build and saved-copy identity before requesting a writable stream. Reject a different file, a newer rebuilt draft, or a save made by another tab. Cancel/permission denial leaves edits intact. Edits made during a save remain dirty until saved separately.
+- Replace only the inert `ppt-master-saved-state` JSON in the selected file; escape `<` and preserve the original HTML, scripts, styles and asset references. Never serialize the live editor DOM. Reopening the saved HTML in a clean browser restores text and notes without localStorage. Save writes only that HTML, not Markdown/SVG project sources. Comments remain browser-local and are copied for review.
+- **Before any agent-side source editing**, run `build_preview_html.py` once. It imports the saved content through existing stable bindings, baseline checks, backups and processing receipts, then rebuilds. The HTML finalizer also imports saved edits before preparing slides. A dry-run with unapplied saved edits stops and asks for the preview rebuild; it never silently exports stale source. Conflicting edits stop automatic replacement and retain the original HTML for reconciliation.
+- `saved_html.py` reads only the inert JSON, never executes browser scripts. Saved packets contain text/notes only and never mark comments processed. Saved drafts remain tied to the original project; keep the project together for subsequent regeneration and relative assets. Alternate preview outputs are also checked, but the normal user path is `preview/index.html`.
 
 ## Stable source bindings
 
@@ -30,11 +40,11 @@ Example explicit plain-text binding:
 
 IDs and binding attributes do not add scripts or editable HTML to source SVGs. The preview uses a sandboxed inline frame and a separate HTML editing overlay; final exports still consume the saved SVG/content sources.
 
-## One clipboard review loop
+## Save and clipboard review loop
 
 1. The user edits page text, notes and comments directly. Keep the comments input and copy action before notes; assets follow notes. Hover/focus indicators should be subtle. Arrow keys move the cursor inside editors and navigate slides elsewhere.
-2. “Copy all changes” copies one Markdown change list grouped by slide. Show original/new wording, only changed note passages with minimal context, and literal comments together. Omit untouched pages, empty sections, repeated page metadata and full technical IDs. Use short project/version/slide/text/record references. For a whole-note rewrite, include the new notes once; the original stays in the version archive. The user pastes it into Codex; no file transfer is needed. If automatic copying fails, show the complete record in a selectable text dialog. Never clear drafts just because copying succeeded.
-3. Codex preserves that exact record, inspects it, and dry-runs/applies direct edits. An agent-side temporary text file is allowed for reliable tool input; do not ask the user to download or upload a package. Prefer stdin or structured tool arguments, and never interpolate pasted content into executable shell text.
+2. Prefer saving text/notes with “Save HTML”; the copy action then includes comments only. For unsaved content, “Copy all changes” copies one Markdown change list grouped by slide. Show original/new wording, only changed note passages with minimal context, and literal comments together. Omit untouched pages, empty sections, repeated page metadata and full technical IDs. Use short project/version/slide/text/record references. For a whole-note rewrite, include the new notes once; the original stays in the version archive. The user pastes it into Codex; no file transfer is needed. If automatic copying fails, show the complete record in a selectable text dialog. Never clear drafts just because copying succeeded.
+3. Codex first rebuilds the draft to import already-saved HTML content, preserves that exact copied record, inspects it, and dry-runs/applies direct edits. An agent-side temporary text file is allowed for reliable tool input; do not ask the user to download or upload a package. Prefer stdin or structured tool arguments, and never interpolate pasted content into executable shell text.
 4. Codex reads and handles the comments as review instructions. Applying text does **not** mark comments handled. Resolve conflicts using original/current/edited values and the user's intent; only ask when that intent remains ambiguous. Missing or remapped fields require manual mapping repair, not guessed replacement.
 5. After handling the relevant feedback, Codex acknowledges the exact record and rebuilds the preview. New previews clear only the copied snapshots confirmed as processed. Anything changed after copying remains, even a change back to the previous source wording. Run targeted visual QA after source edits.
 
@@ -81,7 +91,7 @@ The header reference identifies the originating project; `v12` refers to an immu
 
 Accepted text edits update mapped SVG text, affected main-content fields, and matching design-spec outline lines. Preserve unrelated slides, style attributes and chapter headings. Notes are edited as raw Markdown, not reconstructed from the parsed notes display. Applying notes updates the matching total-note section and individual note file. Do not use `# NN...` headings or the reserved `---` slide separator inside a note; use `***` for a Markdown rule.
 
-Browser drafts are local to the browser/profile and may be unavailable or cleared. Show an explicit warning if storage fails. Copying does not save project files or send feedback automatically. Before final production, obtain any pending browser-only changes through “Copy all changes”.
+Unsaved drafts and comments are local to the browser/profile and may be unavailable or cleared. Show an explicit warning if storage fails. Saving HTML persists text/notes independently of that storage; copying does not save files or send feedback automatically. Before final production, import saved HTML through the preview rebuild and obtain any remaining unsaved edits through “Copy all changes”.
 
 `preview/review_index.json` preserves short-reference mappings; `preview/review_baselines/vN.json` keeps immutable text/notes snapshots, without duplicate SVG/media data. Preserve both when moving a project or rebuilding a preview; old copied records must remain resolvable. Missing or mismatched baselines stop automatic application with an actionable error. The local draft store retains per-field/comment sequence numbers and a snapshot for each copy. `preview/review_receipts.json` records processed categories for each immutable record ID; rebuilds embed these receipts in the manifest. Clear a local edit only when its sequence matches the processed copy. Rebase the original value of newer edits onto the updated source, retaining the user's latest text. Do not use a build timestamp or old-comment cleanup to discard content or feedback. Legacy comment-only drafts can be recovered as explicitly unassigned feedback with their original page key; verify identity before applying them after page reordering.
 
@@ -92,6 +102,8 @@ Source commits check the revision again under a project-local lock. Before-image
 After changing this feature, run source round-trip tests, clipboard/receipt tests, and the isolated browser test:
 
 ```bash
+python3 -m unittest discover -s ${SKILL_DIR}/scripts -p test_saved_html.py
+PPT_TEST_NODE_MODULES=<node_modules> node ${SKILL_DIR}/scripts/test_save_preview.cjs
 python3 -m unittest discover -s ${SKILL_DIR}/scripts -p test_preview_editing.py
 python3 -m unittest discover -s ${SKILL_DIR}/scripts -p test_review_packets.py
 python3 -m unittest discover -s ${SKILL_DIR}/scripts -p test_review_markdown.py
@@ -99,3 +111,5 @@ node ${SKILL_DIR}/scripts/test_editable_preview.cjs --python <python> --node-mod
 ```
 
 The browser test uses temporary fixtures and a mocked clipboard, never the user's deck or clipboard. It covers default editing, lossless Markdown copying, full notes, combined copying, comment-only feedback, refresh recovery, undo, overflow, typing/navigation, manual-copy fallback, application/rebuild, receipt clearing and post-copy edits. The Markdown tests also cover distant note changes, repeated paragraphs, multiline content, insertions/deletions, old baselines, reordered pages, missing mappings, literal Markdown, and legacy JSON compatibility. Run existing preview tests and targeted `qa_preview_html.py` after actual slide revisions. The acceptance check is editing a visible sentence, note and comment, copying once, processing through Codex, rebuilding, and verifying that accepted edits survive while later browser edits remain pending.
+
+The save browser test mocks only the OS picker/permission boundary and writes real temporary HTML files. It covers cancellation, denial, wrong/stale files, handle reuse, fresh-browser recovery, safe literal HTML in notes, edits during a save, comment-only copying and source regeneration. The installed browser API capability check is separate; tests do not grant OS permission on the user’s behalf.

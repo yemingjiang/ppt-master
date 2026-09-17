@@ -317,6 +317,10 @@ def prepare_single_html(
     lang: str | None = None,
 ) -> dict[str, object]:
     project_path = project_path.resolve()
+    from saved_html import sync_saved_html
+    saved = sync_saved_html(project_path, dry_run=dry_run)
+    if dry_run and saved['pending_changes']:
+        raise PreparationError('Saved HTML edits are pending. Rebuild the preview to import them before export dry-run.')
     source_dir_name = {"output": "svg_output", "final": "svg_final"}.get(source)
     if source_dir_name is None:
         raise PreparationError("source must be 'output' or 'final'")

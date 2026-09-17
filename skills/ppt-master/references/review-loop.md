@@ -12,11 +12,11 @@ python3 ${SKILL_DIR}/scripts/svg_quality_checker.py <project_path>/svg_output
 python3 ${SKILL_DIR}/scripts/qa_preview_html.py <project_path> --slides <changed_slide_ids> --screenshots <qa_dir> --json
 ```
 
-Use the offline `preview/index.html` as the default review entry. Read [editable-review.md](editable-review.md) when building or revising it. Mapped page text and full Markdown notes are editable immediately. One “复制所有修改” / “Copy all changes” button copies a concise Markdown change list grouped by slide for pasting into Codex. Show only changed text/note passages and comments, plus short location references; complete baselines stay in the project. There is no online mode, local server, edit toggle, or download step. Generate a PDF only when the user explicitly requests static review.
+Use the offline `preview/index.html` as the default review entry. Read [editable-review.md](editable-review.md) when building or revising it. Mapped page text and full Markdown notes are editable immediately. “保存 HTML” / “Save HTML” writes text and notes to the current file after the user selects it and grants permission in Chrome. The copy action then copies comments only; unsaved edits can still use “复制所有修改” / “Copy all changes”. Before editing sources, rebuild the draft once to import saved HTML content with conflict checks. Show only changed text/note passages and comments, plus short location references; complete baselines stay in the project. There is no online mode, local server, edit toggle, or download step. Generate a PDF only when the user explicitly requests static review.
 
 The preview must:
 
-- order the review panels as comments (input and “Copy all changes” action), speaker notes, then assets, so long notes do not push the comment entry below the fold;
+- order the review panels as comments (input, save and copy actions), speaker notes, then assets, so long notes do not push the comment entry below the fold;
 - place Previous / Next controls in the current-slide takeaway card;
 - keep the desktop/tablet outline independently scrollable and automatically move the active item into view;
 - keep the full SVG canvas visible with aspect-preserving `contain` scaling and no internal viewer scrolling or cropping;

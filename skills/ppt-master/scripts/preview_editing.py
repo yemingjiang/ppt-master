@@ -395,10 +395,13 @@ def apply_edits(project: Path, package: dict, dry_run: bool = False) -> dict:
         return result
 
 
-def inject_editor(document: str, manifest: dict) -> str:
+def inject_editor(document: str, manifest: dict, saved_draft: dict | None = None) -> str:
     assets = Path(__file__).parent / 'preview_editor'
     css = (assets / 'editor.css').read_text()
     js = (assets / 'clipboard.js').read_text() + '\n' + (assets / 'editor.js').read_text()
     payload = json.dumps(manifest, ensure_ascii=False).replace('</', '<\\/')
-    addition = '<style>' + css + '</style><script>const editableManifest = ' + payload + ';</script><script>' + js + '</script>'
+    saved = {'schema': 1, 'kind': 'ppt-master-saved-html', 'project_id': manifest['project_id'],
+             'build_id': str(uuid.uuid4()), 'save_id': None, 'packet': None, 'draft': saved_draft}
+    saved_json = json.dumps(saved, ensure_ascii=False).replace('<', '\\u003c')
+    addition = '<script id="ppt-master-saved-state" type="application/json">' + saved_json + '</script><style>' + css + '</style><script>const editableManifest = ' + payload + ';</script><script>' + js + '</script>'
     return document.replace('</body>', addition + '</body>')

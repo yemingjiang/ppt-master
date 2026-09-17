@@ -965,7 +965,13 @@ def render_preview(
     output_path = output_path.expanduser().resolve() if output_path else (project_path / "preview" / "index.html")
     output_path.parent.mkdir(parents=True, exist_ok=True)
 
-    from preview_editing import prepare_manifest, inject_editor
+    from preview_editing import Conflict, atomic_write, prepare_manifest, inject_editor
+    from saved_html import sync_saved_html
+    original_output = output_path.read_bytes() if output_path.exists() else None
+    default_path = project_path / 'preview/index.html'
+    saved = sync_saved_html(project_path)['saved']
+    if output_path != default_path:
+        saved = sync_saved_html(project_path, output_path)['saved'] or saved
     if editable is None:
         editable = source == 'output'
     if editable and source != 'output':
@@ -984,8 +990,10 @@ def render_preview(
             unified_review=bool(edit_manifest),
         )
     if edit_manifest:
-        document = inject_editor(document, edit_manifest)
-    output_path.write_text(document, encoding='utf-8')
+        document = inject_editor(document, edit_manifest, saved.get('draft') if saved else None)
+    if (output_path.read_bytes() if output_path.exists() else None) != original_output:
+        raise Conflict('The preview changed during rebuild. Saved edits are preserved; retry the build.')
+    atomic_write(output_path, document)
 
     return {
         "status": "ok",

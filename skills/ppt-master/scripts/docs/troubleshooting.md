@@ -78,3 +78,7 @@ Important optional packages:
 - `numpy` for watermark removal
 - `PyMuPDF` for PDF conversion
 - `google-genai` / `openai` for image generation backends
+
+### Offline HTML saving
+
+Use Chrome and click “Save HTML”, select the currently opened draft and authorize writing. Opening the file alone does not grant write access. A new session requires selecting the file again. Unsupported embedded browsers retain clipboard review. Text/notes are saved to HTML; comments remain browser-local. If another window saved or Codex rebuilt the file, copy unsaved changes before reopening the newer version. Rebuild the preview to import saved content before modifying source or generating final output; a baseline conflict must be reconciled, never bypassed by replacing the preview.

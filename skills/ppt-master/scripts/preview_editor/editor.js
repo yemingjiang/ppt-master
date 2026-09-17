@@ -1,6 +1,9 @@
-// Offline, always-editable review. All source changes are handed back through the clipboard.
+// Offline review: save text/notes into the authorized HTML; copy remaining feedback.
 (() => {
   const state = editableManifest;
+  const savedElement = document.getElementById('ppt-master-saved-state');
+  let savedFile = JSON.parse(savedElement.textContent), fileHandle = null, saving = false;
+  const supportsSave = window.isSecureContext && typeof window.showOpenFilePicker === 'function';
   const zh = document.documentElement.lang.startsWith('zh');
   const t = (cn, en) => zh ? cn : en;
   const clone = value => value === undefined ? undefined : JSON.parse(JSON.stringify(value));
@@ -11,6 +14,12 @@
   let draft, copying = false, active = null, storageOK = true;
   try { draft = JSON.parse(localStorage.getItem(storage) || 'null'); } catch (_) {}
   if (!draft || draft.project_id !== state.project_id) draft = fresh();
+  // A file copy must work in a clean browser. Prefer its saved snapshot if local storage
+  // belongs to another saved copy; retain the displaced local draft as a recovery backup.
+  if (savedFile.draft && (draft.file_save_id !== savedFile.draft.file_save_id || draft.counter < savedFile.draft.counter)) {
+    try { if (Object.keys(draft.edits || {}).length) localStorage.setItem(storage+'::backup::'+Date.now(),JSON.stringify(draft)); } catch (_) {}
+    draft = clone(savedFile.draft);
+  }
   if (draft.format !== 2) {
     const old = draft; draft = fresh(); draft.base_revision = old.base_revision || state.revision;
     for (const c of old.changes || []) {
@@ -53,6 +62,8 @@
         if(n.seq===seq)delete draft.edits[uid].notes;else if(s?.notes_available)n.before=s.notes;
       }
       copied.content_done=true;
+      if(copied.saved_html)for(const earlier of Object.values(draft.copies))
+        if(earlier.saved_html && earlier.saved_counter<=copied.saved_counter)earlier.content_done=true;
     }
     if (receipt.comments_processed && !copied.comments_done) {
       for (const [uid,seq] of Object.entries(copied.versions.comments)) if(draft.edits[uid]?.comment?.seq===seq)delete draft.edits[uid].comment;
@@ -74,14 +85,39 @@
   }
   const $ = id => document.getElementById(id);
   const panel=$('commentsPanel'); panel.querySelector('.panel-title').textContent=t('修改与批注','Changes and comments');
-  panel.querySelector('.panel-text').textContent=t('点击页面文字或直接修改备注；意见写在批注里。完成后复制所有修改给 Codex。','Click slide text or edit notes directly. Add comments below, then copy all changes to Codex.');
+  panel.querySelector('.panel-text').textContent=t('正文与备注改好后，点击“保存 HTML”并选择当前文件。需要调整内容、结构或版式的意见，写入批注并复制给 Codex。','Save text and notes to this HTML by selecting the current file. Copy comments to Codex for content, structure or layout changes.');
   commentBox.placeholder=t('当前页批注：例如希望怎样调整内容、结构或版式。','Comments for this slide: describe changes to content, structure or layout.');
   const oldButton=$('copyAllCommentsBtn'); oldButton.removeEventListener('click',copyAllComments);
   oldButton.id='copyAllChangesBtn'; oldButton.textContent=t('复制所有修改','Copy all changes');
   const copyButton=oldButton;
+  const saveButton=document.createElement('button');saveButton.id='saveHtmlBtn';saveButton.className='small-button';
+  saveButton.textContent=t('保存 HTML','Save HTML');copyButton.before(saveButton);
+  saveButton.title=t('选择文件前会自动复制原文件路径；弹窗中可直接粘贴定位。','The original path is copied before file selection; paste it into the picker.');
   const undo=document.createElement('button'); undo.id='undoEdit';undo.className='small-button';undo.textContent=t('撤销','Undo');copyButton.after(undo);
   saveState.id='editStatus';const status=message=>{saveState.textContent=message;};
   const warning=document.createElement('div');warning.id='editOverflow';warning.setAttribute('role','status');panel.append(warning);
+  // A local URL is not an authorized file handle: picker startIn cannot accept
+  // arbitrary paths. Copy the path on Save instead of pretending to preselect.
+  function nativeFilePath(url) {
+    if(url.protocol!=='file:')return '';
+    let path=decodeURIComponent(url.pathname);
+    if(url.hostname)return '//'+url.hostname+path;
+    if(/^\/[A-Za-z]:\//.test(path))path=path.slice(1).replace(/\//g,'\\');
+    return path;
+  }
+  const originalPath=nativeFilePath(new URL(location.href));
+  const mac=/Mac/.test(navigator.platform);
+  const fileHelp=document.createElement('div');fileHelp.id='saveFileHelp';
+  const pathInput=document.createElement('input');pathInput.id='originalFilePath';pathInput.readOnly=true;pathInput.value=originalPath;pathInput.hidden=true;pathInput.setAttribute('aria-label',t('原 HTML 文件路径','Original HTML file path'));
+  fileHelp.append(pathInput);panel.append(fileHelp);
+  async function copyOriginalPath() {
+    // A synchronous copy keeps the save click's activation available for the picker.
+    try{if(legacyCopyText(originalPath))return true;}catch(_){}
+    try{if(navigator.clipboard?.writeText){await navigator.clipboard.writeText(originalPath);return true;}}catch(_){}
+    return false;
+  }
+
+
   const notesInput=document.createElement('textarea');notesInput.id='editNotes';notesInput.setAttribute('aria-label',t('演讲备注 Markdown，含要点与时长','Speaker notes Markdown, including key points and duration'));
   $('notesPanel').append(notesInput);$('notesPanel').querySelector('.panel-title').textContent=t('演讲备注','Speaker notes');
   notesScript.hidden=true;notesMeta.hidden=true;
@@ -110,12 +146,45 @@
     for(const c of draft.legacy_comments){feedback.push({slide_id:null,key:c.key,text:c.text,source_round:c.source_round});versions.legacy[c.id]=c.seq;}
     return {changes,base_values,comments:feedback,versions};
   }
+  function contentSignature(data=packageData()) { return JSON.stringify([data.changes,data.base_values]); }
+  function contentIsSaved(data=packageData()) {
+    return !data.changes.length || (draft.last_saved?.revision===state.revision && draft.last_saved.signature===contentSignature(data));
+  }
+  function copyData() {
+    const data=packageData();
+    if(contentIsSaved(data)){data.changes=[];data.base_values={};data.versions.fields={};data.versions.notes={};}
+    else if(savedFile.draft && draft.last_saved?.revision===state.revision) {
+      // If the user copies after another edit, compare against the already-saved
+      // HTML values: the agent imports that snapshot before processing feedback.
+      for(const c of data.changes) {
+        const s=state.slides.find(s=>s.id===c.slide_id), saved=savedFile.draft.edits[c.slide_id];
+        for(const id of Object.keys(c.fields)) {
+          const before=saved?.fields[id]?.value??s?.fields.find(f=>f.id===id)?.value;
+          if(c.fields[id]===before){delete c.fields[id];delete data.base_values[c.slide_id].fields[id];delete data.versions.fields[c.slide_id]?.[id];}
+          else data.base_values[c.slide_id].fields[id].value=before;
+        }
+        if('notes'in c) {
+          const before=saved?.notes?.value??s?.notes;
+          if(c.notes===before){delete c.notes;delete data.base_values[c.slide_id].notes;delete data.versions.notes[c.slide_id];}
+          else data.base_values[c.slide_id].notes=before;
+        }
+      }
+      data.changes=data.changes.filter(c=>Object.keys(c.fields).length || 'notes'in c);
+      for(const uid of Object.keys(data.base_values))if(!data.changes.some(c=>c.slide_id===uid))delete data.base_values[uid];
+    }
+    return data;
+  }
   function updateUI(message) {
-    const data=packageData();copyButton.disabled=copying || (!data.changes.length&&!data.comments.length);undo.disabled=!history.length;
+    const data=copyData();copyButton.disabled=copying || (!data.changes.length&&!data.comments.length);undo.disabled=!history.length;
+    copyButton.textContent=contentIsSaved()?t('复制批注','Copy comments'):t('复制所有修改','Copy all changes');
+    fileHelp.hidden=!originalPath || !!fileHandle || pathInput.hidden;
+    saveButton.disabled=saving || !supportsSave;saveButton.textContent=saving?t('正在保存…','Saving…'):t('保存 HTML','Save HTML');
     if(message)status(message);
+    else if(contentIsSaved() && draft.last_saved)status(t('正文与备注已保存到 HTML。批注暂存在浏览器，需复制给 Codex。','Text and notes are saved in HTML. Copy comments to Codex.'));
+    else if(!supportsSave)status(t('此浏览器不支持授权写回。请用 Chrome 打开，或复制所有修改给 Codex。','File writing is unavailable. Open in Chrome or copy all changes to Codex.'));
     else if(!storageOK)status(t('浏览器暂存不可用，请及时复制所有修改。','Browser storage is unavailable. Copy all changes before leaving.'));
-    else if(data.changes.length||data.comments.length)status(t('修改已暂存在此浏览器。','Changes are stored in this browser.')+(draft.base_revision!==state.revision?t(' 新草稿已更新，保留的修改会交给 Codex 核对。',' The preview has a newer revision; Codex will check retained changes.'):''));
-    else status(t('可直接编辑。完成后复制所有修改给 Codex。','Edit directly, then copy all changes to Codex.'));
+    else if(data.changes.length||data.comments.length)status(t('修改暂存在浏览器，尚未写入 HTML。','Changes are stored in this browser.')+(draft.base_revision!==state.revision?t(' 新草稿已更新，保留的修改会交给 Codex 核对。',' The preview has a newer revision; Codex will check retained changes.'):''));
+    else status(mac?t('编辑正文和备注后，可直接保存 HTML，弹窗内按 ⌘⇧G 打开路径输入框','After editing slide text and notes, save the HTML directly. Press ⌘⇧G in the picker to open the path field.'):t('编辑正文和备注后，可直接保存 HTML，在弹窗文件名栏粘贴路径','After editing slide text and notes, save the HTML directly. Paste the path into the picker’s file name field.'));
   }
   const valueOf=(s,f)=>draft.edits[s.id]?.fields[f.id]?.value??f.value;
   const notesOf=s=>draft.edits[s.id]?.notes?.value??s.notes;
@@ -141,7 +210,7 @@
   }
   function paint() {
     const s=slide(),doc=viewer.contentDocument;if(!s||!doc)return;
-    for(const f of s.fields){const node=doc.getElementById(f.id);if(node)setNodeText(node,valueOf(s,f));}
+    for(const f of s.fields){const node=doc.getElementById(f.id);if(node && (draft.edits[s.id]?.fields[f.id] || node.textContent!==f.value.replace(/\n/g,'')))setNodeText(node,valueOf(s,f));}
     requestAnimationFrame(checkOverflow);
   }
   function checkOverflow() {
@@ -187,7 +256,7 @@
   function uuid(){return 'r'+(globalThis.crypto?.randomUUID?.().replace(/-/g,'').slice(0,16) || Date.now().toString(36)+Math.random().toString(36).slice(2,10));}
   async function copyAllChanges() {
     if(copying)return;
-    const data=packageData();if(!data.changes.length&&!data.comments.length)return;
+    const data=copyData();if(!data.changes.length&&!data.comments.length)return;
     const packet={schema:2,kind:'ppt-master-review',packet_id:uuid(),project_id:state.project_id,
       base_revision:draft.base_revision,changes:data.changes,base_values:data.base_values,comments:data.comments};
     const fields=data.changes.reduce((n,c)=>n+Object.keys(c.fields).length,0),notes=data.changes.filter(c=>'notes'in c).length;
@@ -204,7 +273,73 @@
     if(copied)updateUI(t('已复制所有修改，请粘贴给 Codex。','All changes copied. Paste into Codex.')+' '+summary+(!storageOK?t(' 浏览器暂存不可用，请保留这份文本。',' Browser storage is unavailable; retain this text.') : ''));
     else{$('manualCopyText').value=text;manual.showModal();$('manualCopyText').focus();$('manualCopyText').select();updateUI(t('请在弹窗中手动复制，修改仍然保留。','Copy manually from the dialog. Your changes are retained.'));}
   }
+  function readSaved(text) {
+    const matches=[...text.matchAll(/<script id="ppt-master-saved-state" type="application\/json">([\s\S]*?)<\/script>/g)];
+    if(matches.length!==1)throw Error(t('请选择当前打开的可编辑 HTML 草稿。','Select the currently opened editable HTML draft.'));
+    return JSON.parse(matches[0][1]);
+  }
+  function verifyFile(text) {
+    const file=readSaved(text);
+    if(file.project_id!==state.project_id || file.build_id!==savedFile.build_id)
+      throw Error(t('文件不是当前这版草稿，请选择原文件；如果草稿已更新，请先复制未保存修改，再重新打开新版。','This is not the current draft version. Choose the original file, or copy unsaved changes before reopening the newer version.'));
+    if(file.save_id!==savedFile.save_id)
+      throw Error(t('文件已被另一个窗口保存。请先复制未保存修改，再重新打开文件，避免覆盖。','Another window saved this file. Copy unsaved changes and reopen it to avoid overwriting.'));
+  }
+  let manualPathReady=false;
+  async function saveHtml() {
+    if(saving || !supportsSave)return;
+    saving=true;updateUI();let writable;
+    try {
+      if(!fileHandle) {
+        if(originalPath && !manualPathReady) {
+          const copied=await copyOriginalPath();
+          if(!copied) {
+            saving=false;manualPathReady=true;pathInput.hidden=false;pathInput.focus();pathInput.select();
+            updateUI(t('自动复制不可用，请复制下方已选中的路径，再点“保存 HTML”。','Automatic copy is unavailable. Copy the selected path below, then click Save HTML again.'));
+            return;
+          }
+          pathInput.hidden=true;
+          if(navigator.userActivation && !navigator.userActivation.isActive) {
+            saving=false;manualPathReady=true;
+            updateUI(t('路径已复制，请再点一次“保存 HTML”打开选择器。','Path copied. Click Save HTML once more to open the picker.'));
+            return;
+          }
+          updateUI(t('原文件路径已复制，可在选择器中粘贴定位。','Original path copied; paste it into the picker.'));
+        }
+        manualPathReady=false;
+        [fileHandle]=await window.showOpenFilePicker({id:'ppt-'+state.project_id.replace(/[^A-Za-z0-9_-]/g,'').slice(0,24),multiple:false,types:[{description:'HTML',accept:{'text/html':['.html','.htm']}}],excludeAcceptAllOption:true});
+      }
+      const original=await (await fileHandle.getFile()).text();verifyFile(original);
+      const data=packageData(), snapshot=clone(draft), saveId=uuid();
+      const packet=data.changes.length?{schema:2,kind:'ppt-master-review',packet_id:saveId,
+        project_id:state.project_id,base_revision:draft.base_revision,changes:data.changes,base_values:data.base_values,comments:[]}:null;
+      if(packet)snapshot.copies[saveId]={saved_html:true,saved_counter:snapshot.counter,versions:{fields:data.versions.fields,notes:data.versions.notes,comments:{},legacy:{}},content_done:false,comments_done:true};
+      snapshot.file_save_id=saveId;snapshot.last_saved={revision:state.revision,signature:contentSignature(data)};
+      // Comments keep their existing browser/clipboard lifecycle; only content is saved.
+      for(const e of Object.values(snapshot.edits))delete e.comment;
+      snapshot.legacy_comments=[];
+      const next={...savedFile,save_id:saveId,packet,draft:snapshot};
+      const json=JSON.stringify(next).replace(/</g,'\\u003c');
+      const output=original.replace(/(<script id="ppt-master-saved-state" type="application\/json">)[\s\S]*?(<\/script>)/,(_,a,b)=>a+json+b);
+      // Request write permission only for the verified file. Keep other tabs from
+      // silently overwriting a save completed while the picker was open.
+      writable=await fileHandle.createWritable();
+      if(await (await fileHandle.getFile()).text()!==original)throw Error(t('文件刚刚发生变化，请重新打开后再保存。','The file just changed. Reopen it before saving.'));
+      await writable.write(output);await writable.close();writable=null;
+      savedFile=next;savedElement.textContent=json;
+      // Edits made while the write was in progress remain dirty.
+      draft.file_save_id=saveId;draft.last_saved=snapshot.last_saved;
+      if(packet)draft.copies[saveId]=snapshot.copies[saveId];
+      persist();saving=false;
+      updateUI(contentIsSaved()?t('已写回 HTML 原文件。下次生成将自动同步正文和备注；批注仍需交给 Codex。','Saved to the original HTML. The next build imports text and notes; copy comments to Codex.'):t('已保存刚才的内容；保存期间的新修改尚未保存。','Snapshot saved; newer edits are still unsaved.'));
+    } catch(error) {
+      if(writable)try{await writable.abort();}catch(_){}
+      fileHandle=null;saving=false;
+      updateUI(error.name==='AbortError'?t('已取消保存；修改仍保留在浏览器。','Save cancelled; changes remain in this browser.'):t('未保存：','Not saved: ')+error.message);
+    }
+  }
+  saveButton.addEventListener('click',saveHtml);
   copyButton.addEventListener('click',copyAllChanges);
-  window.addEventListener('beforeunload',e=>{const data=packageData();if(data.changes.length||data.comments.length){persist();e.preventDefault();e.returnValue='';}});
+  window.addEventListener('beforeunload',e=>{const data=packageData();if(!contentIsSaved(data)||data.comments.length){persist();e.preventDefault();e.returnValue='';}});
   persist();syncComments();selectEditorSlide();updateUI();
 })();
