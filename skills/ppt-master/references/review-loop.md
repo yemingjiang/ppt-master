@@ -2,6 +2,8 @@
 
 Use this reference when packaging or revising `preview/index.html`, processing copied changes and comments, or receiving new skeleton feedback after a final artifact already exists.
 
+Apply `slide-style.md` during visual review: inspect representative rendered pages at normal size and 50% of authored dimensions, checking essential text, color semantics, font/spacing consistency, and the confirmed footer policy. This supplements context-appropriate readability checks and the existing overflow/overlap QA; it adds no approval checkpoint.
+
 ## Review surface
 
 Build and browser-QA the preview:

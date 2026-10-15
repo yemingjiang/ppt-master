@@ -15,6 +15,7 @@
 | **Selected Final Target** | [None for Review Skeleton / `exports/<project_name>.single.html` / native editable `.pptx` / legacy direct-export `.pptx`] |
 | **Target Audience** | [Filled by Strategist] |
 | **Use Case** | [Filled by Strategist] |
+| **Viewing Context** | [Live projection / remote screen share / self-paced reading; include relevant viewing constraints] |
 | **Created Date** | {date_str} |
 
 ---
@@ -29,7 +30,7 @@
 | ----- | ----- |
 | **Final Artifact** | `exports/<project_name>.single.html` |
 | **Source Manifest** | `html_output/presentation.json` |
-| **Confirmed HTML Theme and Tokens** | [Default `executive-red`: `#FFFFFF`, `#F2F2F2`, `#B50F0A`, `#FFFFFF`, `#222222`, `#666666`, `#D7D7D7`; record the user-confirmed override instead when selected before generation] |
+| **Confirmed HTML Theme and Tokens** | [Map the agreed project palette to a named theme: background, surface, primary, on_primary, text, muted, line. `executive-red` is a fallback only when no style exists.] |
 | **Slide Root Contract** | One `<section class="pm-slide" data-slide-id="...">` per manifest slide |
 | **Resource Policy** | [Project-local assets only; package for offline use] |
 | **Iframe Isolation** | [None / list isolated project-local embeds and rationale] |
@@ -68,6 +69,7 @@
 | **Background** | `#......` | Page background (light theme typically white; dark theme dark gray/navy) |
 | **Secondary bg** | `#......` | Card background, section background |
 | **Primary** | `#......` | Title decorations, key sections, icons |
+| **On primary** | `#......` | Readable foreground text on primary-colored surfaces; maps to HTML on_primary |
 | **Accent** | `#......` | Data highlights, key information, links |
 | **Secondary accent** | `#......` | Secondary emphasis, gradient transitions |
 | **Body text** | `#......` | Main body text (dark theme uses light text) |
@@ -79,7 +81,16 @@
 
 > **Reference**: Industry colors in `references/strategist.md` or `scripts/config.py` under `INDUSTRY_COLORS`
 
+### Style Rules
+
+- **Stable visual identity**: [Reusable palette, font roles, spacing rhythm, icon language, required brand elements]
+- **Color semantics**: [Cross-page data/category/status mappings; roles may share colors]
+- **Permitted variation**: [Per-page composition choices; distinguish fixed reference-template elements from flexible content]
+- **Contrast and output mapping**: [Readable foreground/background pairs; preserve agreed style in SVG, HTML tokens, and native PPTX]
+
 ### Gradient Scheme (if needed, using SVG syntax)
+
+> Optional: include only when the effect serves the confirmed visual intent. Flat compositions are equally valid.
 
 ```xml
 <!-- Title gradient -->
@@ -115,25 +126,33 @@
 
 **Font stack**: `[Fill in CSS font-family string]`
 
+### Typography Rules
+
+- **Family and weight usage**: [Small intentional set of families; use weights/sizes for emphasis]
+- **Availability and fallback**: [Verify Chinese/Latin fonts and weights in the rendering/export environment]
+- **Line spacing**: [Specify role-based line-height or baseline spacing, especially titles and quotes]
+- **Character spacing and case**: [Normal spacing by default; document deliberate adjustments and English case choices]
+
 ### Font Size Hierarchy
 
 > **Design principle**: Use body font size as baseline (1x), derive other levels proportionally
 > **Unit convention**: Use px uniformly (SVG native unit) to avoid pt/px conversion errors
-> **Selection principle**: Font size is based on **content density**, not design style
+> **Selection principle**: Choose sizes for viewing conditions before fitting content; shorten/split crowded pages before shrinking essential text. See `references/slide-style.md`.
 
-**Baseline**: Body font size = [fill in]px (choose 18-24px based on content density)
+**Baseline**: Body font size = [fill in]px (1280×720 starting ranges: live presentation 28–32px; self-paced reading 18–24px; verify actual renders)
+**Minimum font size**: [fill in]px (supporting text; essential labels must remain readable in the chosen viewing context)
 
-| Purpose | Ratio | 24px baseline (relaxed) | 18px baseline (dense) | Weight |
-| ------- | ----- | ---------------------- | -------------------- | ------ |
-| Cover title | 2.5-3x | 60-72px | 45-54px | Bold |
-| Chapter title | 2-2.5x | 48-60px | 36-45px | Bold |
-| Content title | 1.5-2x | 36-48px | 27-36px | Bold |
-| Subtitle | 1.2-1.5x | 29-36px | 22-27px | SemiBold |
-| **Body content** | **1x** | **24px** | **18px** | Regular |
-| Annotation | 0.75-0.85x | 18-20px | 14-15px | Regular |
-| Page number/date | 0.55-0.65x | 13-16px | 10-12px | Regular |
+| Purpose | Ratio | 24px baseline (relaxed) | 18px baseline (dense) | Weight | Current Project |
+| ------- | ----- | ---------------------- | -------------------- | ------ | --------------- |
+| Cover title | 2.5-3x | 60-72px | 45-54px | Bold | [Optional override] |
+| Chapter title | 2-2.5x | 48-60px | 36-45px | Bold | [Optional override] |
+| Content title | 1.5-2x | 36-48px | 27-36px | Bold | [Optional override] |
+| Subtitle | 1.2-1.5x | 29-36px | 22-27px | SemiBold | [Optional override] |
+| **Body content** | **1x** | **24px** | **18px** | Regular | [Optional override] |
+| Annotation | 0.75-0.85x | 18-20px | 14-15px | Regular | [Optional override] |
+| Page number/date (if used) | 0.75-0.85x | 18-20px | 14-15px | Regular | [Optional override] |
 
-> **Tip**: Dense content (6+ points per page) use 18px; relaxed content (3-5 points per page) use 24px
+> The 24px/18px columns are examples. The style-sheet generator uses a filled `Current Project` value first, then the matching baseline column, then the ratio for other baselines. Keep supporting text at or above the selected minimum. Check representative slides at 50% of authored dimensions; this screening check supplements intended-viewing-condition QA.
 
 ---
 
@@ -141,9 +160,15 @@
 
 ### Page Structure
 
-- **Header area**: [Height and content description]
+- **Header area**: [Height/content as needed; title placement may vary with page composition]
 - **Content area**: [Height and content description]
-- **Footer area**: [Height and content description; default to page number only unless visible citations are explicitly requested]
+- **Footer area**: [Policy: none / page number / required branding or compliance; reserve space only when used. Live slides can omit persistent chrome; report reviews may benefit from numbering. Visible citations only when requested/required.]
+
+### Layout Rules
+
+- **Composition**: [Choose per page message; blank, split, chart, and structured report layouts are available]
+- **Decoration**: [Use cards, shadows, gradients, or glow only for a stated purpose; flat layouts are valid]
+- **Readability response**: [Shorten, simplify, split, or move detail before shrinking essential text]
 
 ### Common Layout Modes
 

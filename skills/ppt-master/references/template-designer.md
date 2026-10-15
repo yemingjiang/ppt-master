@@ -61,6 +61,8 @@ Color and typography interpretation rules for PPTX-backed references:
 
 **Design philosophy**: Templates define visual consistency and structural pages; content pages maintain maximum flexibility.
 
+Apply `slide-style.md` to the template brief: distinguish stable visual rules from flexible composition, allow a near-blank content area, and record the intended viewing context and optional footer policy. The four core files remain a compatibility inventory; they do not require decorative chrome or extra pages in every presentation.
+
 **Naming note**: TOC page keeps `02_toc.svg` naming for template library compatibility and sort order.
 
 ### Optional Extension Pages (As Needed)

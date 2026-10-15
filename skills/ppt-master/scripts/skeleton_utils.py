@@ -135,6 +135,11 @@ def parse_bullets(text: str) -> list[str]:
     return [re.sub(r"^\s*-\s+", "", line).strip() for line in text.splitlines() if re.match(r"^\s*-\s+", line)]
 
 
+def subsection_bullets(text: str, heading: str) -> list[str]:
+    match = re.search(rf"^{re.escape(heading)}\n(.*?)(?=^###\s|\Z)", text, re.M | re.S)
+    return parse_bullets(match.group(1)) if match else []
+
+
 def parse_design_spec(project_path: Path) -> dict:
     spec_path = project_path / "design_spec.md"
     spec_text = read_text(spec_path)
@@ -166,8 +171,10 @@ def parse_design_spec(project_path: Path) -> dict:
     typography_lines = typography_section.splitlines()
     font_rows = collect_table(typography_lines, find_heading_index(typography_lines, "### Font Plan") or 0)
     size_rows = collect_table(typography_lines, find_heading_index(typography_lines, "### Font Size Hierarchy") or 0)
-    baseline_match = re.search(r"Baseline:\s*Body font size\s*=\s*([0-9]+)px", typography_section)
-    font_stack_match = re.search(r"Font stack:\s*`([^`]+)`", typography_section)
+    plain_typography = typography_section.replace("**", "")
+    baseline_match = re.search(r"Baseline:\s*Body font size\s*=\s*([0-9]+)\s*px", plain_typography)
+    minimum_match = re.search(r"Minimum font size:\s*([0-9]+)\s*px", plain_typography)
+    font_stack_match = re.search(r"Font stack:\s*`([^`]+)`", plain_typography)
 
     layout_lines = layout_section.splitlines()
     mode_rows = collect_table(layout_lines, find_heading_index(layout_lines, "### Common Layout Modes") or 0)
@@ -250,15 +257,20 @@ def parse_design_spec(project_path: Path) -> dict:
         "design_style": project_info.get("Design Style", ""),
         "target_audience": project_info.get("Target Audience", ""),
         "use_case": project_info.get("Use Case", ""),
+        "viewing_context": project_info.get("Viewing Context", ""),
         "created_date": project_info.get("Created Date", ""),
         "language": language,
         "visual_theme": visual_theme,
         "colors": color_rows,
+        "style_rules": subsection_bullets(visual_section, "### Style Rules"),
         "font_plan": font_rows,
+        "typography_rules": subsection_bullets(typography_section, "### Typography Rules"),
         "font_sizes": size_rows,
         "body_baseline_px": int(baseline_match.group(1)) if baseline_match else 18,
+        "minimum_font_px": int(minimum_match.group(1)) if minimum_match else None,
         "font_stack": font_stack_match.group(1) if font_stack_match else "",
         "page_structure": page_structure,
+        "layout_rules": subsection_bullets(layout_section, "### Layout Rules"),
         "layout_modes": mode_rows,
         "spacing": spacing_rows,
         "icons": icon_rows,
@@ -368,10 +380,32 @@ def parse_asset_manifest(project_path: Path, spec: dict) -> dict[str, list[dict]
     return build_default_asset_map(spec)
 
 
+def font_size_for_baseline(row: dict[str, str], baseline: int) -> str:
+    """Keep authored overrides, select the matching scale, or derive from ratio."""
+    override = clean_md_inline(row.get("Current Project", ""))
+    if override and not override.startswith("[") and override not in {"-", "—"}:
+        return override
+    for column, value in row.items():
+        match = re.match(r"(\d+)px baseline\b", column)
+        if match and int(match.group(1)) == baseline and value.strip():
+            return clean_md_inline(value)
+    ratio = re.fullmatch(
+        r"(\d+(?:\.\d+)?)(?:\s*[-–—]\s*(\d+(?:\.\d+)?))?\s*[x×]",
+        clean_md_inline(row.get("Ratio", "")),
+    )
+    if ratio:
+        low = round(float(ratio.group(1)) * baseline)
+        high = round(float(ratio.group(2)) * baseline) if ratio.group(2) else low
+        return f"{low}-{high}px" if low != high else f"{low}px"
+    return ""
+
+
 def build_style_sheet_markdown(spec: dict) -> str:
     zh = spec["language"] == "zh"
     project_name = spec["project_name"]
-    min_font = 16 if spec["body_baseline_px"] >= 18 else 14
+    min_font = spec.get("minimum_font_px")
+    if min_font is None:
+        min_font = 16 if spec["body_baseline_px"] >= 18 else 14
     lines: list[str] = []
     if zh:
         lines.extend(
@@ -385,14 +419,18 @@ def build_style_sheet_markdown(spec: dict) -> str:
                 f"- 使用场景：`{spec['use_case']}`",
                 f"- 主题描述：`{spec['visual_theme'].get('Theme', '')} / {spec['visual_theme'].get('Tone', '')}`".rstrip(" / "),
                 "",
-                "## 配色体系",
-                "",
             ]
         )
+        if spec.get("viewing_context"):
+            lines.extend([f"- 观看条件：{spec['viewing_context']}", ""])
+        lines.extend(["## 配色体系", ""])
         for row in spec["colors"]:
             lines.append(f"- {clean_md_inline(row.get('Role', 'Color'))} `{clean_md_inline(row.get('HEX', ''))}`")
             if row.get("Purpose"):
                 lines.append(f"  用途：{clean_md_inline(row['Purpose'])}")
+        if spec.get("style_rules"):
+            lines.extend(["", "## 全局样式约定", ""])
+            lines.extend(f"- {item}" for item in spec["style_rules"])
         lines.extend(["", "## 字体", ""])
         for row in spec["font_plan"]:
             lines.append(
@@ -400,14 +438,18 @@ def build_style_sheet_markdown(spec: dict) -> str:
             )
         if spec["font_stack"]:
             lines.append(f"- 字体栈：`{spec['font_stack']}`")
+        if spec.get("typography_rules"):
+            lines.extend(["", "## 排版细则", ""])
+            lines.extend(f"- {item}" for item in spec["typography_rules"])
         lines.extend(["", "## 字级体系", "", f"- `最小字体`：`{min_font}`", f"- `正文基线`：`{spec['body_baseline_px']}`"])
         for row in spec["font_sizes"]:
             lines.append(
-                f"- `{clean_md_inline(row.get('Purpose', 'Level'))}`：{clean_md_inline(row.get('Weight', ''))}，建议区间 `{clean_md_inline(row.get('18px baseline (dense)', ''))}`"
+                f"- `{clean_md_inline(row.get('Purpose', 'Level'))}`：{clean_md_inline(row.get('Weight', ''))}，建议区间 `{font_size_for_baseline(row, spec['body_baseline_px'])}`"
             )
         lines.extend(["", "## 版式规则", ""])
         for item in spec["page_structure"]:
             lines.append(f"- {clean_md_inline(item)}")
+        lines.extend(f"- {item}" for item in spec.get("layout_rules", []))
         if spec["layout_modes"]:
             lines.extend(["", "## 常用布局模式", ""])
             for row in spec["layout_modes"]:
@@ -429,8 +471,9 @@ def build_style_sheet_markdown(spec: dict) -> str:
                 "",
                 "## 交接给 PowerPoint 的要求",
                 "",
-                "- 保留标题、正文、卡片、页码的统一层级，不在成品阶段重新发明一套样式。",
+                "- 保留已确认的配色语义、字体、字级和页脚策略，按项目约定使用卡片和页码。",
                 "- 优先通过减少文字和调整容器解决拥挤问题，不把正文字号压到最小值以下。",
+                "- 按观看条件检查关键文字，并用原生渲染进行正常尺寸和半尺寸复核。",
                 "- PowerPoint 成品阶段只做成品化和原生可编辑化，不回退重写内容结构。",
                 "",
             ]
@@ -446,25 +489,33 @@ def build_style_sheet_markdown(spec: dict) -> str:
                 f"- Target audience: `{spec['target_audience']}`",
                 f"- Use case: `{spec['use_case']}`",
                 "",
-                "## Color System",
-                "",
             ]
         )
+        if spec.get("viewing_context"):
+            lines.extend([f"- Viewing context: {spec['viewing_context']}", ""])
+        lines.extend(["## Color System", ""])
         for row in spec["colors"]:
             lines.append(f"- {clean_md_inline(row.get('Role', 'Color'))} `{clean_md_inline(row.get('HEX', ''))}`")
             if row.get("Purpose"):
                 lines.append(f"  Purpose: {clean_md_inline(row['Purpose'])}")
+        if spec.get("style_rules"):
+            lines.extend(["", "## Shared Style Rules", ""])
+            lines.extend(f"- {item}" for item in spec["style_rules"])
         lines.extend(["", "## Typography", ""])
         for row in spec["font_plan"]:
             lines.append(f"- {clean_md_inline(row.get('Role', 'Role'))}: `{clean_md_inline(row.get('English', ''))}`")
         if spec["font_stack"]:
             lines.append(f"- Font stack: `{spec['font_stack']}`")
+        if spec.get("typography_rules"):
+            lines.extend(["", "## Typography Rules", ""])
+            lines.extend(f"- {item}" for item in spec["typography_rules"])
         lines.extend(["", "## Type Scale", "", f"- Minimum font size: `{min_font}`", f"- Body baseline: `{spec['body_baseline_px']}`"])
         for row in spec["font_sizes"]:
-            lines.append(f"- `{clean_md_inline(row.get('Purpose', 'Level'))}`: `{clean_md_inline(row.get('18px baseline (dense)', ''))}`")
+            lines.append(f"- `{clean_md_inline(row.get('Purpose', 'Level'))}`: `{font_size_for_baseline(row, spec['body_baseline_px'])}`")
         lines.extend(["", "## Layout Rules", ""])
         for item in spec["page_structure"]:
             lines.append(f"- {clean_md_inline(item)}")
+        lines.extend(f"- {item}" for item in spec.get("layout_rules", []))
         lines.append("")
     return "\n".join(lines).strip() + "\n"
 

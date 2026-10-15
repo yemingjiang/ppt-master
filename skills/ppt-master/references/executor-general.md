@@ -63,12 +63,16 @@ The General style is not confined to fixed templates; layouts can be freely chos
 
 ### Typography Hierarchy
 
-```
-Title layer   → 28-36px, bold, theme color or white
-Subtitle layer → 20-24px, medium weight, secondary color
-Body layer    → 16-18px, regular, dark gray
-Annotation layer → 12-14px, light gray, bottom-aligned
-```
+Use the confirmed project scale, chosen for viewing conditions:
+
+| Role | Treatment |
+|------|-----------|
+| Title | Project title scale, bold, readable contrast |
+| Subtitle | Project subtitle scale, medium weight |
+| Body | Confirmed body baseline, regular weight |
+| Annotation | Project annotation scale and supporting-text minimum |
+
+Emphasize through size/weight within the chosen font families. Check line spacing and actual text/background pairs; do not use the layout examples to introduce smaller fixed fonts.
 
 ---
 

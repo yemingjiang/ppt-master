@@ -15,7 +15,7 @@ html_output/
     └── 02_overview.html
 ```
 
-Create `html_output/presentation.json` with `schema_version: 1`, `title`, `lang`, `aspect_ratio`, a named `theme` with color `tokens`, and ordered `slides`. Each slide needs a unique `id`, audience-facing `title`, and project-local `file`. `notes_key` is optional and defaults to the slide ID. Use the default `executive-red` theme unless the confirmed design spec requires another named theme and its complete tokens.
+Create `html_output/presentation.json` with `schema_version: 1`, `title`, `lang`, `aspect_ratio`, a named `theme` with color `tokens`, and ordered `slides`. Each slide needs a unique `id`, audience-facing `title`, and project-local `file`. `notes_key` is optional and defaults to the slide ID. Inherit the approved project style using `slide-style.md`; `executive-red` is a fallback only when no style has been established. Verify that the manifest theme name and all seven tokens match the confirmed design spec after scaffolding, including `on_primary`; the scaffold's default name or fallback tokens do not establish a new style.
 
 The confirmed theme is fixed at build time. A runtime theme switcher or chooser is forbidden.
 

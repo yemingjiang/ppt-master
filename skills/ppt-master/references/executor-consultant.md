@@ -24,14 +24,16 @@ KPI cards are the most common element in consulting reports. Standard layout (12
   Card 4: x=975, y=160
 ```
 
+These coordinates are a composition example. Resize cards or reduce the number of cards when the confirmed viewing-context type scale needs more space; follow `slide-style.md`.
+
 **Card internal structure** (top to bottom):
 
 | Area | Content | Font Size | Style |
 |------|---------|-----------|-------|
 | Icon row | data-icon icon | 32x32 | Theme color |
-| Metric name | "Monthly Active Users" | 14px | Gray #64748B |
-| Core number | "1.2M" | 36-42px | Bold, dark color |
-| Trend annotation | "+12.3% vs last month" | 12px | Green=up / Red=down |
+| Metric name | "Monthly Active Users" | Project body scale | Secondary text with readable contrast |
+| Core number | "1.2M" | Project metric scale (e.g., 2× body) | Bold, high contrast |
+| Trend annotation | "+12.3% vs last month" | Project annotation scale | Consistent status color + explicit sign/label |
 
 **Trend arrow conventions**:
 - Up: `arrow-trend-up` icon + green text
@@ -40,7 +42,7 @@ KPI cards are the most common element in consulting reports. Standard layout (12
 
 ### 2. Chart Color Conventions
 
-Consulting-style charts use **monochromatic depth gradients** rather than rainbow colors:
+For related data series, consulting-style charts can use **same-hue variations**. Distinct categories may use distinct colors with stable cross-page meanings and labels; follow the confirmed palette.
 
 ```
 Primary series:   Theme color 100% opacity
@@ -105,9 +107,9 @@ Core consulting report layout: chart on the left, key insights on the right:
 ```
 Chart area: x=40, y=120, w=700, h=480
 Insight area: x=780, y=120, w=460, h=480
-  - Core conclusion (bold, 16px)
-  - 3-5 bullet points (14px)
-  - Data source (12px, gray)
+  - Core conclusion (project emphasis scale, bold)
+  - Supporting points (confirmed body baseline)
+  - Source in notes; visible citation only when requested/required
 ```
 
 ---
@@ -126,22 +128,16 @@ Consulting-style page titles should be **assertion headlines**, not descriptive 
 
 ### Data Source Attribution
 
-Every data-containing page must include a source note at the bottom:
-
-```xml
-<text x="40" y="700" font-size="10" fill="#94A3B8">
-  Source: National Bureau of Statistics 2025 Annual Report; Internal team analysis
-</text>
-```
+Keep traceable source details for every data-containing page in notes and/or the asset manifest. Add an on-slide source only when requested or required by the confirmed citation/compliance policy, using the project's supporting-text size and contrast. Follow the main skill's visible-provenance rule.
 
 ### Key Takeaway Box
 
-Consulting-style content pages should include a **Takeaway Box** below the title:
+An optional **Takeaway Box** can reinforce a conclusion when the assertion headline alone is insufficient:
 
 ```
-Position: x=40, y=80, w=1200, h=50
-Background: Light theme color (fill-opacity="0.08")
-Text: 14-16px, one-sentence summary of the page's core takeaway
+Position: Adapt to the headline and available content area
+Background: Optional light theme color (fill-opacity="0.08")
+Text: Project emphasis scale; one sentence, without duplicating the headline
 ```
 
 ---
@@ -190,7 +186,7 @@ Duration: 2 minutes
 ## Self-check Supplement (Consultant-specific)
 
 - [ ] Data matches source data — no fabrication
-- [ ] Every data page has a source attribution at the bottom
+- [ ] Every data page has traceable provenance; visible citations follow the confirmed policy
 - [ ] Page titles are assertion-based, not descriptive
 - [ ] KPI cards have trend arrows and comparison annotations
 - [ ] Chart colors are unified, using monochromatic scheme rather than rainbow

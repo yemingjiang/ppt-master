@@ -188,12 +188,12 @@ Logically related elements **MUST** be wrapped in `<g>` tags. This produces Powe
 
 | Grouping Unit | Contains |
 |---------------|----------|
-| Card / panel | Background rect + shadow + icon + title + body text |
+| Card / panel | Background rect + optional shadow/icon + title + body text |
 | Process step | Number circle + icon + label + description |
 | List item | Bullet / number + icon + title + description |
 | Icon-text combo | Icon element + adjacent label |
 | Page header | Title + subtitle + accent decoration |
-| Page footer | Page number + branding |
+| Page footer (when used) | Page number / branding required by the confirmed footer policy |
 | Decorative cluster | Related decorative shapes (rings, orbs, dots) |
 
 **Example**:

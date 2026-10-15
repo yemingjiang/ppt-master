@@ -49,10 +49,12 @@ Every MBB-level presentation follows the SCQA narrative structure:
 **Data annotation three essentials**: Every data visualization must include (1) The value itself (large bold font) (2) Comparison reference (baseline / prior period / competitor) (3) Meaning interpretation ("So what?")
 
 ```xml
-<text x="160" y="280" text-anchor="middle" font-size="42" font-weight="bold" fill="#1E293B">97.3%</text>
-<text x="160" y="310" text-anchor="middle" font-size="13" fill="#64748B">Industry avg 82% | Competitor A 89%</text>
-<text x="160" y="335" text-anchor="middle" font-size="12" fill="#059669">Leading industry by 15.3 percentage points</text>
+<text x="640" y="280" text-anchor="middle" font-size="64" font-weight="bold" fill="#1E293B">97.3%</text>
+<text x="640" y="330" text-anchor="middle" font-size="24" fill="#64748B">Industry avg 82% | Competitor A 89%</text>
+<text x="640" y="375" text-anchor="middle" font-size="24" fill="#047857">Leading industry by 15.3 percentage points</text>
 ```
+
+This is an illustrative composition; scale and reflow it to the confirmed project typography. Essential comparison/meaning labels must remain readable in the intended viewing conditions.
 
 ---
 
@@ -72,9 +74,9 @@ Every MBB-level presentation follows the SCQA narrative structure:
 
 | Level | Position | Font Size |
 |-------|----------|-----------|
-| Core conclusion | Takeaway Box | 16-18px bold |
-| Arguments | Content area body | 14-16px |
-| Supporting data | Charts / cards | 12-14px |
+| Core conclusion | Assertion headline / optional Takeaway Box | Project title/emphasis scale, bold |
+| Arguments | Content area body | Confirmed body baseline |
+| Supporting data | Charts / cards | Project label/annotation scale and minimum |
 
 **Contrast**: Title "Market Research Results" (wrong) → "Metaverse needs 5-10 years to reach scale" (right); Body "We researched... and found..." (wrong) → "Three arguments: (1)... (2)... (3)..." (right)
 
@@ -82,23 +84,23 @@ Every MBB-level presentation follows the SCQA narrative structure:
 
 ## MBB-level Layout Patterns
 
-### Content Page Standard Structure (1280x720)
+### Content Page Structure Reference (1280x720)
 
 ```
 ┌──────────────────────────────────┐
-│ Gradient top bar (0,0 → 1280,6)  │
+│ Optional brand bar              │
 ├──────────────────────────────────┤
-│ Assertion title (x=40, y=50, 24px)│
+│ Assertion headline              │
 ├──────────────────────────────────┤
-│ Takeaway Box (x=40, y=75,        │  ← Dark background + white text, one-sentence conclusion
-│   w=1200, h=45)                  │
+│ Optional takeaway              │  ← Useful when it adds meaning beyond the headline
 ├──────────────────────────────────┤
-│ Content area (x=40, y=140,       │  ← Charts / data / analysis
-│   w=1200, h=520)                 │
+│ Content area                   │  ← Charts / data / analysis
 ├──────────────────────────────────┤
-│ Source | CONFIDENTIAL | Page #    │  ← y=700, 10px
+│ Optional footer                │  ← Confirmed numbering / brand / compliance policy
 └──────────────────────────────────┘
 ```
+
+Allocate space around the confirmed type scale; a near-blank canvas or another composition is also valid. Use `slide-style.md` for viewing context and footer policy. Keep sources in notes/handoff files unless visible attribution is requested or required. Confidentiality marks require an actual requirement.
 
 ### Strategic Roadmap
 
@@ -128,9 +130,9 @@ MBB-level color usage is extremely restrained — color serves information:
 | **Focus** | Target data in theme color, everything else gray |
 | **Reduce cognitive load** | Same series differentiated by opacity (`fill-opacity` 1.0/0.6/0.3) |
 | **Semantics** | Green = positive, Red = negative, Gray = baseline |
-| **Branding** | Gradient top bar / decorative lines in brand color |
+| **Branding** | Confirmed brand palette/type; optional bars or lines when useful |
 
-**Commandments**: No more than 3 primary colors; accent color used at most 2-3 places globally; data series use same-hue depth variations, not different colors; background white or very light gray.
+**Color guidance**: Prefer a restrained palette and deliberate accent use. Same-hue variations suit related series; distinct categories may need distinct, consistently mapped colors and labels. Light backgrounds are a common report choice, while the approved project theme governs the actual background. Color counts are composition aids, not hard limits.
 
 ---
 
@@ -201,7 +203,7 @@ Flex: [If time is tight, skip phase two and three details and go straight to fin
 
 - [ ] **SCQA complete**: Overall follows Situation-Complication-Question-Answer structure
 - [ ] **Data contextualized**: Every data point has a comparison reference
-- [ ] **Conclusion first**: Every page's Takeaway Box has a one-sentence conclusion
+- [ ] **Conclusion first**: Assertion headlines or optional takeaway boxes communicate the conclusion
 - [ ] **MECE principle**: Categorized analysis is mutually exclusive and collectively exhaustive
 
 ### Visual Level
@@ -209,7 +211,7 @@ Flex: [If time is tight, skip phase two and three details and go straight to fin
 - [ ] **Color with intent**: Colors serve information delivery
 - [ ] **Ample whitespace**: Not crowded; information can "breathe"
 - [ ] **Visual hierarchy**: Conclusion > Arguments > Details, differentiated by font size/weight
-- [ ] **Brand consistency**: Gradient top bar and footer unified throughout
+- [ ] **Style consistency**: Confirmed palette, typography, and any required brand/footer elements remain consistent
 
 ### Notes Level
 

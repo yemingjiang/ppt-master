@@ -121,7 +121,7 @@ Provide specific page count recommendation based on source document content volu
 
 ### c. Key Information Confirmation
 
-Confirm target audience, usage occasion, and core message; provide initial assessment based on document nature.
+Confirm target audience, usage occasion, viewing conditions (live projection / remote screen share / self-paced reading), and core message; provide initial assessment based on document nature. Read `slide-style.md` when defining or revising style, and include its recommendations in the existing Eight Confirmations.
 
 ### d. Style Objective Confirmation
 
@@ -151,7 +151,7 @@ Proactively provide a color scheme (HEX values) based on content characteristics
 
 When a reference PPTX style source exists, prefer the extracted theme colors as the starting point and only adjust after explicitly explaining why (for example, theme palette is warm red-gold, but page-local slides add darker photographic overlays).
 
-When the Deliverable Mode is **Single-file HTML Presentation**, recommend the `executive-red` theme with tokens `#FFFFFF, #F2F2F2, #B50F0A, #FFFFFF, #222222, #666666, #D7D7D7` for background, surface, primary, on-primary, text, muted, and line respectively. The user may override this theme before generation. Record the confirmed HTML theme and every token in the design spec; final HTML authoring must use that confirmed theme.
+When the Deliverable Mode is **Single-file HTML Presentation**, map the agreed project/brand palette to a named HTML theme with complete background, surface, primary, on-primary, text, muted, and line tokens. Use `executive-red` (`#FFFFFF, #F2F2F2, #B50F0A, #FFFFFF, #222222, #666666, #D7D7D7`) only when there is no established style. Record the confirmed theme and every token in the design spec; final HTML authoring must use that theme. Output format does not override reference evidence or an approved palette.
 
 **Industry color quick reference** (full 14-industry list in `scripts/config.py` under `INDUSTRY_COLORS`):
 
@@ -162,7 +162,7 @@ When the Deliverable Mode is **Single-file HTML Presentation**, recommend the `e
 | Healthcare / Health | `#00796B` Teal Green | Professional, reassuring |
 | Government / Public Sector | `#C41E3A` Red | Authoritative, dignified |
 
-**Color rules**: 60-30-10 rule (primary 60%, secondary 30%, accent 10%); text contrast ratio >= 4.5:1; no more than 4 colors per page.
+**Color rules**: Keep semantic meanings consistent across pages and charts; text contrast ratio >= 4.5:1. Treat 60–30–10 distribution and a small color count as composition aids, with justified chart/brand exceptions. Reuse established palettes and record color meanings in section III's `Style Rules`; follow `slide-style.md` for details.
 
 ### f. Icon Usage Confirmation
 
@@ -201,20 +201,19 @@ Built-in library contains 6700+ icons across three libraries:
 
 | Scenario | Preset | Title | Body | Emphasis |
 |----------|--------|-------|------|----------|
-| Modern business, tech | P1 | Microsoft YaHei / Arial | Microsoft YaHei / Calibri | SimHei |
+| Modern business, tech | P1 | Microsoft YaHei / Arial | Microsoft YaHei / Arial | Same family, bold |
 | Government documents, reports | P2 | SimHei | SimSun / Times | SimSun |
 | Culture, arts, humanities | P3 | KaiTi / Georgia | Microsoft YaHei | SimHei |
 | Traditional, conservative | P4 | SimSun | Microsoft YaHei / Arial | SimSun |
-| English-primary | P5 | Arial / Impact | Calibri / Georgia | Arial Black |
+| English-primary | P5 | Arial | Arial | Same family, bold |
+
+Presets are starting points. Prefer a small set of available families and use weight/size for emphasis. Plan Chinese, Latin, and fallback fonts together; use monospace for code and optional handwritten fonts only for brief annotations. Record line/character spacing and font availability under section IV's `Typography Rules`.
 
 #### Font Size Baseline (all sizes in px)
 
-Selection principle: Font size is based on **content density**, not design style.
+Selection principle: Choose essential-text sizes for the **viewing conditions** first. Style category and content density do not determine readability. On a 1280×720 canvas, start around 28–32px for live presentation body text or 18–24px for self-paced reading, then check actual renders. Shorten, split, or move detail before shrinking essential text.
 
-| Content Density | Points per Page | Body Baseline | Suitable Scenarios |
-|----------------|----------------|---------------|-------------------|
-| Relaxed | 3-5 items | 24px | Keynote-style, training materials |
-| Dense | 6+ items | 18px | Data reports, consulting analysis |
+Record the selected body baseline and supporting-text minimum in section IV. The 24px/18px examples below remain reference scales; derive other baselines by ratio or fill the `Current Project` column for deliberate overrides. Verify key text at 50% of authored canvas size as a quick screening check, followed by context-appropriate QA.
 
 | Level | Ratio | 24px Baseline | 18px Baseline |
 |-------|-------|---------------|---------------|
@@ -308,7 +307,7 @@ When content outline pages involve **data visualization or infographic-style str
 ### Speaker Notes Requirements (Default — no discussion needed)
 
 - **Hard boundary**: Section IX Content Outline and downstream `main_content.md` must describe **audience-facing visible slide copy only**. Presenter reminders, explanation of why a page exists, speaking instructions, and review comments belong in Section X / `notes/`, not in slide body text.
-- **Default footer rule**: Do not plan visible `Source:` / `来源:` footers in the content outline unless the user explicitly requests citations or compliance-style provenance on the slide itself. By default, footer space should be reserved for page number only (or left empty).
+- **Footer planning**: Keep source trails in notes/handoff files unless visible citations are requested or required. Record the footer policy in section V: live slides may omit chrome, report reviews may use page numbers, and brand/compliance elements follow actual requirements. Reserve no unused footer band.
 - **Forbidden visible-slide patterns unless the user explicitly asks for an internal/annotated deck**:
   - "这页的作用是..."
   - "管理层要看的不是..."
@@ -344,7 +343,7 @@ Before closing the strategist phase, confirm the following implicitly through th
 ### A) General Versatile — Executor_General
 
 **Unique capabilities**:
-- Full-width images + gradient overlays (essential for promotions)
+- Full-width images, with overlays only when needed for readability or visual intent
 - Free creative layouts (not grid-constrained)
 - Three style variants: image-text hybrid, minimalist keynote, creative design
 
@@ -375,7 +374,7 @@ Before closing the strategist phase, confirm the following implicitly through th
 | Strategic coloring | Colors serve information, not decoration |
 | Chart vs Table | Trends → charts; precise values → tables |
 
-**Unique page elements**: Gradient top bar + dark takeaway box, confidential marking + rigorous footer, MECE decomposition / driver tree / waterfall chart
+**Useful page elements**: Assertion headline, optional takeaway box, MECE decomposition / driver tree / waterfall chart. Brand bars, page numbers, and confidentiality marks follow the confirmed style/footer policy; they are not automatic consulting requirements.
 
 **Typical scenarios**: Strategic decision reports, deep analysis reports, consulting deliverables (MBB level)
 
@@ -424,7 +423,7 @@ Before closing the strategist phase, confirm the following implicitly through th
 | Top-bottom split | Ultra-wide images + text | Image full-width, text area >= 150px height |
 | Left-right split | Standard/portrait images + text | Image on side, text area >= 280px width |
 
-**PPT 16:9 (1280x720) key dimensions**: Safe area 1200x640 (40px margins); Title area 1200x100; Content area 1200x500; Footer area 1200x40.
+**PPT 16:9 (1280x720) reference dimensions**: Safe area 1200x640 (40px margins); adapt title/content allocation to the page. Reserve a footer band only when the confirmed footer policy uses one.
 
 ---
 
@@ -456,11 +455,11 @@ The Strategist should make professional judgments on the template basis generate
 
 | Chapter | Content Requirements |
 |---------|---------------------|
-| I. Project Information | Project name, canvas format, page count, style, audience, scenario, date |
+| I. Project Information | Project name, canvas format, page count, style, audience, scenario, viewing context, date |
 | II. Canvas Specification | Format, dimensions, viewBox, margins, content area |
-| III. Visual Theme | Style description, light/dark theme, tone, color scheme (with HEX table), gradient scheme |
-| IV. Typography System | Font plan (P1-P5), font size hierarchy (H1-Code, 7 levels) |
-| V. Layout Principles | Page structure (header/content/footer zones), 6 layout modes, spacing spec |
+| III. Visual Theme | Style description, light/dark theme, tone, semantic color table, stable/flexible style rules, optional gradient scheme |
+| IV. Typography System | Font plan, availability/fallback and spacing rules, viewing-context baseline/minimum, type scale and project overrides |
+| V. Layout Principles | Flexible page structure, explicit footer policy, layout/decoration rules, useful layout modes, spacing spec |
 | VI. Icon Usage Spec | Source description, placeholder syntax, recommended icon list |
 | VII. Visualization Reference List | Visualization type, reference template path, used-in pages, purpose |
 | VIII. Image Resource List | Filename, dimensions, ratio, purpose, status, generation description |

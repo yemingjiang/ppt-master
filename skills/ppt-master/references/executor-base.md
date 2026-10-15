@@ -1,6 +1,6 @@
 # Executor Common Guidelines
 
-> Style-specific content is in the corresponding `executor-{style}.md`. Technical constraints are in shared-standards.md.
+> Style-specific content is in the corresponding `executor-{style}.md`. Apply confirmed style using `slide-style.md`; technical constraints are in shared-standards.md.
 
 ---
 
@@ -54,7 +54,7 @@ Must output confirmation including: canvas dimensions, body font size, color sch
 - **Legacy Direct Export**: package only the explicitly requested compatibility PPTX.
 - **Audience-facing visible copy only**: Text placed in SVG pages is presumed to be shown to the presentation audience. Do NOT place presenter instructions, review comments, layout rationale, or meta-explanations on the slide surface unless the user explicitly requests an internal annotated deck.
 - **Move meta language to notes**: Phrases such as "这页的作用是...", "管理层要看的不是...", "建议口头讲...", "现场建议播放...", "对应问题：..." must be rewritten as audience-facing slide copy or moved to `notes/total.md`.
-- **Footer minimalism by default**: Unless the user explicitly requests on-slide citations, visible footers should default to page number only. Do not add `Source: ...`, file paths, or provenance lists to slide footers by default.
+- **Footer policy**: Follow the design spec. Live/keynote pages can omit persistent chrome; review/report decks may use page numbers. Retain required branding/compliance elements and add visible citations only when requested or required. Do not reserve an unused footer band or add provenance lists by default.
 - **Preview-vs-final rule**: `svg_output/` and `preview/index.html` represent approved structure and visual intent for review. They do **not** guarantee that direct SVG conversion will yield a faithful editable PowerPoint.
 - **HTML-final rule**: When the selected final target is `Single-file HTML Presentation`, `preview/index.html` is not the final HTML. After review, read `references/html-presentation.md`, author `html_output/` sequentially in the current main-agent context, and package the selected artifact with `scripts/build_single_html.py`.
 - **Editable-final rule**: When the project mode is `Native Editable Handoff`, build the skeleton and support files to help the native PowerPoint rebuild phase. Do not present the SVG export path as equivalent to the final editable deliverable.
@@ -67,7 +67,8 @@ Must output confirmation including: canvas dimensions, body font size, color sch
   1. **Visual Draft Construction Phase**: Generate all SVG pages continuously in sequential page order, ensuring high consistency in design style and layout coordinates (Visual Consistency)
   2. **Draft Packaging Phase**: After all SVGs are finalized, batch-generate the skeleton support files (`main_content.md`, `style_sheet.md`, `asset_manifest.md`, `notes/total.md`, `preview/index.html`) to ensure narrative coherence and clean handoff
 - **Technical specifications**: See [shared-standards.md](shared-standards.md) for SVG technical constraints and PPT compatibility rules
-- **Visual depth**: Use filter shadows, glow effects, gradient fills, dashed strokes, and gradient overlays from shared-standards.md to create layered depth — flat pages without elevation or emphasis look unfinished
+- **Visual hierarchy**: Establish focus through alignment, typography, whitespace, and contrast. Flat and near-blank compositions are complete designs. Use cards, shadows, glow, and gradients only for a specific purpose consistent with the spec.
+- **Viewing-context QA**: Use the confirmed body baseline and supporting-text minimum, including for chart labels. Edit, split, or simplify crowded content before reducing essential text. Inspect representative renders at normal and half size using `slide-style.md`.
 
 ### SVG File Naming Convention
 
@@ -215,8 +216,8 @@ Apply corresponding fonts for different text roles based on the font plan in the
 |------|--------------------|--------------------|
 | Title font | Microsoft YaHei / KaiTi / SimHei | Arial / Georgia |
 | Body font | Microsoft YaHei / SimSun | Calibri / Times |
-| Emphasis font | SimHei | Arial Black / Consolas |
-| Annotation font | Microsoft YaHei / SimSun | Arial / Times |
+| Emphasis font | Chosen title/body family, bold | Chosen title/body family, bold |
+| Annotation font | Chosen body family | Chosen body family |
 
 ---
 

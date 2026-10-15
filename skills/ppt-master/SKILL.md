@@ -70,6 +70,16 @@ description: Use when asked to create a presentation outline, review draft, fina
 > - **Design handoff rule**: `design_spec.md` and `style_sheet.md` should follow the extracted evidence first. If the extracted theme and the visible pages appear to diverge, explain that explicitly and confirm direction with the user before updating project docs.
 > - **Review-first rule**: If the user asks to "see the extracted result first", present the extracted style findings and wait for confirmation before rewriting `design_spec.md`, `style_sheet.md`, or any generated deck visuals.
 
+## Slide Style Principles
+
+Read `references/slide-style.md` when defining or revising style in Step 4, and apply the confirmed choices during execution and review.
+
+- Separate stable color/font/spacing decisions from per-page composition; blank content pages and structured report layouts are both valid.
+- Choose typography for the viewing conditions before fitting content. Resolve crowding through editing or page structure, and check essential text at half size.
+- Use decoration and persistent footers when they serve the page or an explicit brand/compliance requirement.
+- Carry the confirmed style through SVG review, final HTML, and native PowerPoint. Format defaults yield to the project's agreed palette and typography.
+- Record the choices in the existing design spec and style sheet; use the current confirmation and review steps.
+
 > [!IMPORTANT]
 > ## 🧩 Final Deliverable Mode & Editability Contract
 >
@@ -269,7 +279,7 @@ Read references/strategist.md
 
 1. Canvas format
 2. Page count range
-3. Target audience
+3. Target audience, use case, and viewing conditions
 4. Style objective
 5. Color scheme
 6. Icon usage approach
@@ -459,6 +469,7 @@ Before switching roles, you **MUST first read** the corresponding reference file
 
 | Resource | Path |
 |----------|------|
+| Slide style, typography, and viewing-context guidance | `references/slide-style.md` |
 | Shared technical constraints | `references/shared-standards.md` |
 | Canvas format specification | `references/canvas-formats.md` |
 | Image layout specification | `references/image-layout-spec.md` |

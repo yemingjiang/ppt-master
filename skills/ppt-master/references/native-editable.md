@@ -39,6 +39,7 @@ Treat missing handoff files as a blocker. Go back to `ppt-master` first rather t
 
 - Build the final deck natively. Meaningful content should become editable PowerPoint objects, not full-slide screenshots.
 - Treat `preview/index.html` as approved **structure and visual intent**, not as proof that native PPT text will fit identically.
+- Preserve the confirmed palette, font roles, type scale, and footer policy using `slide-style.md`. Check representative native renders at normal and half size, including font substitution and essential chart-label readability.
 - Use the installed `@oai/artifact-tool` runtime and a single local JS builder for construction, render previews, and export.
 - Keep screenshots, photography, video covers, and other true evidence images as media; rebuild headings, body copy, cards, labels, tables, timelines, and recurring layout chrome natively.
 - If the user wants editability, do **not** fall back to `svg_to_pptx.py` unless they explicitly accept a compatibility export.
