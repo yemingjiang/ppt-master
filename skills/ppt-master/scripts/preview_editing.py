@@ -55,6 +55,8 @@ def inside(project: Path, relative: str) -> Path:
 def revision(project: Path) -> str:
     project = project.resolve()
     paths = [project / 'main_content.md', project / 'design_spec.md']
+    if (project / 'asset_manifest.md').exists():
+        paths.append(project / 'asset_manifest.md')
     paths += sorted((project / 'svg_output').glob('*.svg'))
     paths += sorted((project / 'notes').glob('*.md'))
     digest = hashlib.sha256()
@@ -132,6 +134,11 @@ def prepare_manifest(project: Path) -> dict:
         for node in nodes:
             value = display_text(node)
             field = node.get('data-pm-field')
+            if node.get('data-pm-page-number') == 'true':
+                if field:
+                    raise EditError('Page-number nodes cannot also bind content fields')
+                readonly.append(value)
+                continue
             if not simple_text(node):
                 readonly.append(value)
                 continue
@@ -273,7 +280,7 @@ def apply_edits(project: Path, package: dict, dry_run: bool = False) -> dict:
             return writes.get(relative, originals[relative]) or ''
         seen = set()
         changes = package.get('changes')
-        if not isinstance(changes, list) or not changes:
+        if not isinstance(changes, list) or (not changes and not package.get('order')):
             raise EditError('No changes supplied')
         for change in changes:
             if not isinstance(change, dict):
@@ -360,6 +367,15 @@ def apply_edits(project: Path, package: dict, dry_run: bool = False) -> dict:
                 read(relative)
                 writes[relative] = value.strip('\n') + '\n'
             changed.append(uid)
+        if package.get('order'):
+            from slide_order import plan_order, validate_order
+            after = validate_order(package['order'], [s['id'] for s in manifest['slides']])
+            if after:
+                ordered = plan_order(project, manifest, after, read)
+                for relative in ordered:
+                    read(relative)
+                writes.update(ordered)
+                changed = list(dict.fromkeys(changed + after))
         writes = {k: v for k, v in writes.items() if v != originals[k]}
         result = {'status': 'ok', 'dry_run': dry_run, 'changed_slides': changed, 'files': sorted(writes)}
         if dry_run:
@@ -377,7 +393,10 @@ def apply_edits(project: Path, package: dict, dry_run: bool = False) -> dict:
         committed = []
         try:
             for relative, value in writes.items():
-                atomic_write(inside(project, relative), value)
+                if value is None:
+                    inside(project, relative).unlink(missing_ok=True)
+                else:
+                    atomic_write(inside(project, relative), value)
                 committed.append(relative)
             updated = prepare_manifest(project)
         except Exception:

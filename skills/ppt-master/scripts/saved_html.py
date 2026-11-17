@@ -36,7 +36,7 @@ def read_saved_html(path: Path) -> dict | None:
 def sync_saved_html(project: Path, path: Path | None = None, *, dry_run: bool = False) -> dict:
     project = project.resolve()
     saved = read_saved_html(path or project / 'preview/index.html')
-    result = {'saved': saved, 'pending_changes': [], 'files': []}
+    result = {'saved': saved, 'pending_changes': [], 'pending_order': None, 'files': []}
     if not saved:
         return result
     manifest_path = project / MANIFEST

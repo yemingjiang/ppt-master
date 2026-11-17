@@ -21,6 +21,7 @@ The preview must:
 - order the review panels as comments (input, save and copy actions), speaker notes, then assets, so long notes do not push the comment entry below the fold;
 - place Previous / Next controls in the current-slide takeaway card;
 - keep the desktop/tablet outline independently scrollable and automatically move the active item into view;
+- provide drag handles and Alt+Up/Down ordering in the outline, immediate continuous numbering, undo, and one global order instruction in copied changes; persist saved order and use stable slide IDs so notes and comments follow their pages;
 - keep the full SVG canvas visible with aspect-preserving `contain` scaling and no internal viewer scrolling or cropping;
 - keep SVG text selectable and copyable;
 - forward Left / Right keys from the slide document, while keeping normal cursor movement inside text and note editors;

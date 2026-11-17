@@ -150,6 +150,8 @@ When delivering a reviewable draft in Codex desktop, include a clickable absolut
 
 Copying retains browser drafts. Rebuilding must preserve unprocessed edits and comments; only explicit processing receipts clear their corresponding copied snapshots. Anything edited after copying must survive, including a change back to the original wording. Source files become authoritative after Codex applies or resolves the feedback. `--read-only` is an explicit diagnostic/compatibility option, not a user-facing edit toggle.
 
+The left outline supports drag-to-reorder with immediate continuous numbering, keyboard movement and undo. Save HTML persists the order; Copy all changes includes one global page-order instruction with stable slide references. Apply it through the same inspect/dry-run/apply workflow as text edits. Preserve slide IDs and keep notes/comments attached to their original pages; see `references/editable-review.md` for source renumbering and page-number bindings.
+
 Only create `<project_path>/exports/*.pptx` before the native rebuild phase when the user explicitly asks for direct legacy export or the native editable rebuild path is unavailable.
 
 ## Template Index

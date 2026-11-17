@@ -917,8 +917,8 @@ def build_html(
       }}
     }}
 
-    links.forEach((link, index) => {{
-      link.addEventListener('click', () => selectSlide(index));
+    links.forEach((link) => {{
+      link.addEventListener('click', () => selectSlide(Number(link.dataset.index)));
     }});
 
     commentBox.addEventListener('input', () => {{

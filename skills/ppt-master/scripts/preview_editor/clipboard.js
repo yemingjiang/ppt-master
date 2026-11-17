@@ -47,6 +47,12 @@ const PptReviewFormat = (() => {
     const out=[t('# PPT 修改清单','# PPT Change List'),'',
       t('项目：','Project: ')+oneLine(projectName)+` [${review.project_ref}]`,
       t('版本：','Version: ')+review.version_ref+'｜'+t('修改记录：','Record: ')+packet.packet_id];
+    if(packet.order) {
+      const refs=ids=>ids.map(uid=>review.slides[uid].ref).join(' → ');
+      out.push('',t('## 全局修改：页面顺序','## Global change: Page order'),
+        t('按新顺序排列全部页面，并从 01 连续编号；正文、备注和批注跟随原页面。','Arrange all pages in the new order and renumber from 01; keep text, notes and comments with their original pages.'),
+        t('原顺序：','Before order: ')+refs(packet.order.before),t('新顺序：','After order: ')+refs(packet.order.after));
+    }
     const pages=new Map();
     function page(uid,key,title) {
       const mapKey=uid||'legacy-'+key;

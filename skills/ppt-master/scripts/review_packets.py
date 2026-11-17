@@ -52,7 +52,7 @@ def validate(project: Path, package: dict) -> tuple[dict, dict | None]:
         raise EditError('changes and comments must be lists')
     if not isinstance(package.get('base_values'), dict) or not isinstance(package.get('base_revision'), str):
         raise EditError('Missing source baseline')
-    if not package['changes'] and not package['comments']:
+    if not package['changes'] and not package['comments'] and not package.get('order'):
         raise EditError('There are no edits or comments to process')
     seen = set()
     for change in package['changes']:
@@ -128,9 +128,19 @@ def inspect_packet(project: Path, package: dict) -> dict:
                     item['notes'] = after
             if item['fields'] or 'notes' in item:
                 pending.append(item)
+    pending_order = None
+    if package.get('order') and (not record or not record['content_applied']):
+        from slide_order import validate_order
+        try:
+            after = validate_order(package['order'], [s['id'] for s in manifest['slides']])
+            if after:
+                pending_order = package['order']
+        except Conflict as exc:
+            problems.append({'field_id': 'order', 'reason': str(exc),
+                             'current': [s['id'] for s in manifest['slides']], **package['order']})
     comments = [] if record and record['comments_processed'] else package['comments']
     return {'status': 'conflict' if problems else 'ok', 'packet_id': package['packet_id'],
-            'conflicts': problems, 'pending_changes': pending, 'comments_pending': comments,
+            'conflicts': problems, 'pending_changes': pending, 'pending_order': pending_order, 'comments_pending': comments,
             'current_revision': current_revision,
             'already_processed': bool(record and record['content_applied'] and record['comments_processed'])}
 
@@ -143,7 +153,7 @@ def acknowledge(project: Path, package: dict, content: bool = False, comments: b
     with edit_lock(project):
         _, record = validate(project, package)
         all_receipts = receipts(project)
-        record = record or {'digest': digest(package), 'content_applied': not package['changes'], 'comments_processed': not package['comments']}
+        record = record or {'digest': digest(package), 'content_applied': not package['changes'] and not package.get('order'), 'comments_processed': not package['comments']}
         record['content_applied'] |= content
         record['comments_processed'] |= comments
         all_receipts['packets'][package['packet_id']] = record
@@ -156,9 +166,11 @@ def apply_packet(project: Path, package: dict, dry_run: bool = False) -> dict:
     report = inspect_packet(project, package)
     if report['conflicts']:
         raise Conflict(json.dumps(report, ensure_ascii=False))
-    if report['pending_changes']:
+    if report['pending_changes'] or report['pending_order']:
         native = {'schema': 1, 'project_id': package['project_id'], 'base_revision': report['current_revision'],
                   'changes': copy.deepcopy(report['pending_changes'])}
+        if report['pending_order']:
+            native['order'] = copy.deepcopy(report['pending_order'])
         applied = apply_edits(project, native, dry_run)
         report['files'] = applied['files']
     else:

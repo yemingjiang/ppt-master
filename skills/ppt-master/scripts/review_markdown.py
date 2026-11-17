@@ -168,6 +168,23 @@ def parse_markdown(project: Path, text: str) -> dict:
         skip_blank()
         if pos == len(lines):
             break
+        if lines[pos] in ('## 全局修改：页面顺序', '## Global change: Page order'):
+            if 'order' in result or seen:
+                raise EditError('Page order must appear once before slide-specific changes')
+            pos += 1
+            expect(r'(?:按新顺序排列全部页面，并从 01 连续编号；正文、备注和批注跟随原页面。|Arrange all pages in the new order and renumber from 01; keep text, notes and comments with their original pages\.)', 'Missing page-order instruction')
+            before = expect(r'(?:原顺序：|Before order: )(.+)', 'Missing original page order')[1]
+            after = expect(r'(?:新顺序：|After order: )(.+)', 'Missing requested page order')[1]
+            refs = {s['ref']: uid for uid, s in index['slides'].items()}
+            def resolve_order(value):
+                tokens = value.split(' → ')
+                if any(token not in refs for token in tokens):
+                    raise EditError('Unknown slide reference in page order')
+                return [refs[token] for token in tokens]
+            result['order'] = {'before': resolve_order(before), 'after': resolve_order(after)}
+            if set(result['order']['before']) != {s['id'] for s in baseline(version)['slides']}:
+                raise EditError('Original page order does not contain the archived deck')
+            continue
         page = expect(r'## (\S+) (.+) \[(s\d+|S:[^\]\s]+|legacy)\]', 'Invalid slide heading')
         key, title, ref = page.groups()
         identity = None

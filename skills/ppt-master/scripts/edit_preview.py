@@ -17,7 +17,7 @@ def main():
         epilog='Examples (paste the complete copied text on stdin):\n  edit_preview.py inspect projects/demo --stdin --json\n  edit_preview.py apply projects/demo --stdin --dry-run --json\n  edit_preview.py apply projects/demo --stdin --json\n  edit_preview.py ack projects/demo --stdin --comments-processed --json')
     subs = parser.add_subparsers(dest='command', required=True)
     for command, description in [('inspect', 'Read changes, comments and source conflicts without writing.'),
-                                 ('apply', 'Apply direct text/notes edits; leave comments pending for Codex.'),
+                                 ('apply', 'Apply text, notes and page order; leave comments pending for Codex.'),
                                  ('ack', 'Confirm feedback already handled by Codex; rebuild the offline preview.')]:
         sub = subs.add_parser(command, help=description, description=description)
         sub.add_argument('project_path', type=Path)

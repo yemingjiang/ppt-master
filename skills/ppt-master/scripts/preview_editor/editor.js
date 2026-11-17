@@ -1,4 +1,4 @@
-// Offline review: save text/notes into the authorized HTML; copy remaining feedback.
+// Offline review: save text, notes and page order; copy remaining feedback.
 (() => {
   const state = editableManifest;
   const savedElement = document.getElementById('ppt-master-saved-state');
@@ -9,6 +9,9 @@
   const clone = value => value === undefined ? undefined : JSON.parse(JSON.stringify(value));
   const storage = `ppt-master-edit-drafts::${state.project_id}`;
   const history = [];
+  const sourceOrder = state.slides.map(s=>s.id);
+  const sameOrder = (a,b) => JSON.stringify(a)===JSON.stringify(b);
+  const completeOrder = ids => Array.isArray(ids) && ids.length===sourceOrder.length && new Set(ids).size===ids.length && ids.every(id=>sourceOrder.includes(id));
   const fresh = () => ({format:2, project_id:state.project_id, base_revision:state.revision,
     counter:0, edits:{}, copies:{}, legacy_comments:[], migrated_comments:false});
   let draft, copying = false, active = null, storageOK = true;
@@ -35,11 +38,13 @@
   const slide = () => state.slides.find(s => s.key === entries[current].key);
   const entry = s => draft.edits[s.id] || (draft.edits[s.id]={fields:{}});
   const pendingCopy = (uid, kind, id, seq) => Object.values(draft.copies).some(c => {
+    if(kind==='order')return !c.content_done && c.versions.order!==undefined && (seq===undefined || c.versions.order!==seq);
     if (kind === 'comment') return !c.comments_done && c.versions.comments?.[uid] !== undefined && (seq===undefined || c.versions.comments[uid]!==seq);
     return !c.content_done && (kind==='notes' ? c.versions.notes?.[uid] : c.versions.fields?.[uid]?.[id]) !== undefined &&
       (seq===undefined || (kind==='notes' ? c.versions.notes[uid] : c.versions.fields[uid][id])!==seq);
   });
   function prune() {
+    if(draft.order && sameOrder(draft.order.value,draft.order.before) && !pendingCopy(null,'order'))delete draft.order;
     for (const [uid,e] of Object.entries(draft.edits)) {
       for (const [id,f] of Object.entries(e.fields)) if (f.value===f.before && !pendingCopy(uid,'field',id)) delete e.fields[id];
       if (e.notes && e.notes.value===e.notes.before && !pendingCopy(uid,'notes')) delete e.notes;
@@ -51,6 +56,10 @@
   for (const receipt of state.receipts || []) {
     const copied = draft.copies[receipt.packet_id]; if (!copied) continue;
     if (receipt.content_applied && !copied.content_done) {
+      if(draft.order && copied.versions.order!==undefined) {
+        if(draft.order.seq===copied.versions.order)delete draft.order;
+        else draft.order.before=clone(sourceOrder);
+      }
       for (const [uid,fields] of Object.entries(copied.versions.fields)) for (const [id,seq] of Object.entries(fields)) {
         const f=draft.edits[uid]?.fields[id], s=state.slides.find(s=>s.id===uid), latest=s?.fields.find(f=>f.id===id);
         if (!f) continue;
@@ -72,7 +81,7 @@
     }
   }
   prune();
-  if (!Object.keys(draft.edits).length) draft.base_revision=state.revision;
+  if (!Object.keys(draft.edits).length && !draft.order) draft.base_revision=state.revision;
   // Retain legacy comment-only rounds as explicitly unassigned feedback rather than guessing new slide IDs.
   if (!draft.migrated_comments) {
     try {
@@ -85,7 +94,7 @@
   }
   const $ = id => document.getElementById(id);
   const panel=$('commentsPanel'); panel.querySelector('.panel-title').textContent=t('修改与批注','Changes and comments');
-  panel.querySelector('.panel-text').textContent=t('正文与备注改好后，点击“保存 HTML”并选择当前文件。需要调整内容、结构或版式的意见，写入批注并复制给 Codex。','Save text and notes to this HTML by selecting the current file. Copy comments to Codex for content, structure or layout changes.');
+  panel.querySelector('.panel-text').textContent=t('正文、备注和左侧页序改好后，点击“保存 HTML”并选择当前文件；也可复制所有修改给 Codex。其他意见写入批注。','Save text, notes and page order to this HTML, or copy all changes to Codex. Add other feedback as comments.');
   commentBox.placeholder=t('当前页批注：例如希望怎样调整内容、结构或版式。','Comments for this slide: describe changes to content, structure or layout.');
   const oldButton=$('copyAllCommentsBtn'); oldButton.removeEventListener('click',copyAllComments);
   oldButton.id='copyAllChangesBtn'; oldButton.textContent=t('复制所有修改','Copy all changes');
@@ -144,15 +153,19 @@
       if(e.comment?.text.trim()){feedback.push({slide_id:uid,key:s?.key,title:s?.title,text:e.comment.text});versions.comments[uid]=e.comment.seq;}
     }
     for(const c of draft.legacy_comments){feedback.push({slide_id:null,key:c.key,text:c.text,source_round:c.source_round});versions.legacy[c.id]=c.seq;}
-    return {changes,base_values,comments:feedback,versions};
+    let order;
+    if(draft.order && (!sameOrder(draft.order.value,draft.order.before)||pendingCopy(null,'order',null,draft.order.seq))) {
+      order={before:clone(draft.order.before),after:clone(draft.order.value)};versions.order=draft.order.seq;
+    }
+    return {changes,base_values,comments:feedback,versions,order};
   }
-  function contentSignature(data=packageData()) { return JSON.stringify([data.changes,data.base_values]); }
+  function contentSignature(data=packageData()) { return JSON.stringify([data.changes,data.base_values,data.order??null]); }
   function contentIsSaved(data=packageData()) {
-    return !data.changes.length || (draft.last_saved?.revision===state.revision && draft.last_saved.signature===contentSignature(data));
+    return (!data.changes.length&&!data.order) || (draft.last_saved?.revision===state.revision && draft.last_saved.signature===contentSignature(data));
   }
   function copyData() {
     const data=packageData();
-    if(contentIsSaved(data)){data.changes=[];data.base_values={};data.versions.fields={};data.versions.notes={};}
+    if(contentIsSaved(data)){data.changes=[];data.base_values={};data.order=undefined;data.versions.fields={};data.versions.notes={};delete data.versions.order;}
     else if(savedFile.draft && draft.last_saved?.revision===state.revision) {
       // If the user copies after another edit, compare against the already-saved
       // HTML values: the agent imports that snapshot before processing feedback.
@@ -171,23 +184,92 @@
       }
       data.changes=data.changes.filter(c=>Object.keys(c.fields).length || 'notes'in c);
       for(const uid of Object.keys(data.base_values))if(!data.changes.some(c=>c.slide_id===uid))delete data.base_values[uid];
+      if(data.order) {
+        const before=savedFile.draft.order?.value??sourceOrder;
+        if(sameOrder(before,data.order.after)){data.order=undefined;delete data.versions.order;}
+        else data.order.before=clone(before);
+      }
     }
     return data;
   }
   function updateUI(message) {
-    const data=copyData();copyButton.disabled=copying || (!data.changes.length&&!data.comments.length);undo.disabled=!history.length;
+    const data=copyData();copyButton.disabled=copying || (!data.changes.length&&!data.comments.length&&!data.order);undo.disabled=!history.length;
     copyButton.textContent=contentIsSaved()?t('复制批注','Copy comments'):t('复制所有修改','Copy all changes');
     fileHelp.hidden=!originalPath || !!fileHandle || pathInput.hidden;
     saveButton.disabled=saving || !supportsSave;saveButton.textContent=saving?t('正在保存…','Saving…'):t('保存 HTML','Save HTML');
     if(message)status(message);
-    else if(contentIsSaved() && draft.last_saved)status(t('正文与备注已保存到 HTML。批注暂存在浏览器，需复制给 Codex。','Text and notes are saved in HTML. Copy comments to Codex.'));
+    else if(contentIsSaved() && draft.last_saved)status(t('正文、备注与页序已保存到 HTML。批注暂存在浏览器，需复制给 Codex。','Text, notes and page order are saved in HTML. Copy comments to Codex.'));
     else if(!supportsSave)status(t('此浏览器不支持授权写回。请用 Chrome 打开，或复制所有修改给 Codex。','File writing is unavailable. Open in Chrome or copy all changes to Codex.'));
     else if(!storageOK)status(t('浏览器暂存不可用，请及时复制所有修改。','Browser storage is unavailable. Copy all changes before leaving.'));
-    else if(data.changes.length||data.comments.length)status(t('修改暂存在浏览器，尚未写入 HTML。','Changes are stored in this browser.')+(draft.base_revision!==state.revision?t(' 新草稿已更新，保留的修改会交给 Codex 核对。',' The preview has a newer revision; Codex will check retained changes.'):''));
+    else if(data.changes.length||data.comments.length||data.order)status(t('修改暂存在浏览器，尚未写入 HTML。','Changes are stored in this browser.')+(draft.base_revision!==state.revision?t(' 新草稿已更新，保留的修改会交给 Codex 核对。',' The preview has a newer revision; Codex will check retained changes.'):''));
     else status(mac?t('编辑正文和备注后，可直接保存 HTML，弹窗内按 ⌘⇧G 打开路径输入框','After editing slide text and notes, save the HTML directly. Press ⌘⇧G in the picker to open the path field.'):t('编辑正文和备注后，可直接保存 HTML，在弹窗文件名栏粘贴路径','After editing slide text and notes, save the HTML directly. Paste the path into the picker’s file name field.'));
   }
   const valueOf=(s,f)=>draft.edits[s.id]?.fields[f.id]?.value??f.value;
   const notesOf=s=>draft.edits[s.id]?.notes?.value??s.notes;
+  const orderHint=document.createElement('p');orderHint.id='orderHint';orderHint.setAttribute('role','status');outline.before(orderHint);
+  function renderOrder(focusId) {
+    const selected=entries[current]?.key;
+    const ids=completeOrder(draft.order?.value)?draft.order.value:sourceOrder;
+    const items=new Map(entries.map((e,i)=>[state.slides.find(s=>s.key===e.key).id,{e,link:links[i]}]));
+    entries.splice(0,entries.length,...ids.map(uid=>items.get(uid).e));
+    links.splice(0,links.length,...ids.map(uid=>items.get(uid).link));
+    links.forEach((link,i)=>{
+      link.dataset.index=i;link.dataset.slideId=ids[i];link.querySelector('.slide-no').textContent=String(i+1).padStart(2,'0');
+      entries[i].number=String(i+1).padStart(2,'0');outline.append(link);
+    });
+    current=Math.max(0,entries.findIndex(e=>e.key===selected));
+    links.forEach((link,i)=>link.classList.toggle('active',i===current));
+    orderHint.textContent=draft.order?t('页序已调整，保存 HTML 或复制所有修改交给 Codex。','Order changed. Save HTML or copy all changes to Codex.'):t('拖动 ⋮⋮ 调整页序；聚焦手柄后 Alt+↑/↓ 微调。','Drag ⋮⋮ to reorder; focus a handle and use Alt+↑/↓.');
+    if(draft.order && !completeOrder(draft.order.value))orderHint.textContent=t('页面数量已变化，保留的页序请复制给 Codex 核对。','Pages changed; copy the retained order to Codex for reconciliation.');
+    if(focusId)links.find(l=>l.dataset.slideId===focusId)?.querySelector('.order-handle').focus();
+    paint();syncOutlineToCurrentSlide();
+  }
+  function recordOrder(ids,rememberEdit=true) {
+    if(!completeOrder(ids)||sameOrder(ids,entries.map(e=>state.slides.find(s=>s.key===e.key).id)))return;
+    if(rememberEdit)history.push({kind:'order',previous:clone(draft.order),value:entries.map(e=>state.slides.find(s=>s.key===e.key).id)});
+    draft.order={before:clone(draft.order?.before??sourceOrder),value:clone(ids),seq:++draft.counter};
+    prune();persist();renderOrder();updateUI();
+  }
+  let drag=null,scrollFrame=null,suppressClick=false;
+  function dragTarget() {
+    if(!drag)return;
+    outline.querySelectorAll('.order-before,.order-after').forEach(n=>n.classList.remove('order-before','order-after'));
+    const row=document.elementFromPoint(drag.x,drag.y)?.closest('.slide-link');
+    drag.target=row && outline.contains(row)?row:null;
+    if(drag.target){drag.after=drag.y>row.getBoundingClientRect().top+row.offsetHeight/2;row.classList.add(drag.after?'order-after':'order-before');}
+  }
+  function scrollDrag() {
+    if(!drag?.moved)return;
+    const b=outline.getBoundingClientRect(),edge=40;
+    if(drag.y<b.top+edge)outline.scrollTop-=12;else if(drag.y>b.bottom-edge)outline.scrollTop+=12;
+    dragTarget();scrollFrame=requestAnimationFrame(scrollDrag);
+  }
+  function endDrag(cancel=false) {
+    if(!drag)return;
+    const done=drag;drag=null;cancelAnimationFrame(scrollFrame);
+    outline.querySelectorAll('.order-dragging,.order-before,.order-after').forEach(n=>n.classList.remove('order-dragging','order-before','order-after'));
+    if(done.moved){suppressClick=true;setTimeout(()=>suppressClick=false,0);}
+    if(!cancel&&done.moved&&done.target&&done.target!==done.link) {
+      const ids=links.map(l=>l.dataset.slideId).filter(id=>id!==done.uid),target=ids.indexOf(done.target.dataset.slideId);
+      ids.splice(target+(done.after?1:0),0,done.uid);recordOrder(ids);renderOrder(done.uid);
+    }
+  }
+  links.forEach(link=>{
+    const handle=document.createElement('span');handle.className='order-handle';handle.textContent='⋮⋮';handle.tabIndex=0;handle.setAttribute('role','button');
+    handle.setAttribute('aria-label',t('拖动排序，Alt 加上下键移动','Drag to reorder, Alt plus Up or Down to move'));link.prepend(handle);
+    handle.addEventListener('click',e=>{e.preventDefault();e.stopPropagation();});
+    handle.addEventListener('pointerdown',e=>{if(e.button!==0)return;e.preventDefault();handle.focus();handle.setPointerCapture(e.pointerId);drag={uid:link.dataset.slideId,link,x:e.clientX,y:e.clientY,startY:e.clientY,moved:false};});
+    handle.addEventListener('pointermove',e=>{if(!drag)return;drag.x=e.clientX;drag.y=e.clientY;if(!drag.moved&&Math.abs(e.clientY-drag.startY)>5){drag.moved=true;link.classList.add('order-dragging');scrollDrag();}if(drag.moved)dragTarget();});
+    handle.addEventListener('pointerup',()=>endDrag());handle.addEventListener('pointercancel',()=>endDrag(true));handle.addEventListener('lostpointercapture',()=>endDrag(true));
+    handle.addEventListener('keydown',e=>{
+      if(e.key==='Escape'){endDrag(true);return;}
+      if(!e.altKey||!['ArrowUp','ArrowDown'].includes(e.key))return;e.preventDefault();e.stopPropagation();
+      const ids=links.map(l=>l.dataset.slideId),i=ids.indexOf(link.dataset.slideId),j=i+(e.key==='ArrowUp'?-1:1);
+      if(j<0||j>=ids.length)return;[ids[i],ids[j]]=[ids[j],ids[i]];recordOrder(ids);renderOrder(link.dataset.slideId);
+    });
+  });
+  outline.addEventListener('click',e=>{if(suppressClick){e.preventDefault();e.stopImmediatePropagation();}},true);
+  window.addEventListener('keydown',e=>{if(e.key==='Escape')endDrag(true);});
   function remember(s,kind,id) {
     const e=draft.edits[s.id];history.push({uid:s.id,kind,id,previous:clone(kind==='field'?e?.fields[id]:e?.[kind])});
     if(history.length>100)history.shift();
@@ -210,6 +292,8 @@
   }
   function paint() {
     const s=slide(),doc=viewer.contentDocument;if(!s||!doc)return;
+    const number=entries[current]?.number;
+    doc.querySelectorAll('text[data-pm-page-number="true"]').forEach(n=>{n.textContent=number;});
     for(const f of s.fields){const node=doc.getElementById(f.id);if(node && (draft.edits[s.id]?.fields[f.id] || node.textContent!==f.value.replace(/\n/g,'')))setNodeText(node,valueOf(s,f));}
     requestAnimationFrame(checkOverflow);
   }
@@ -248,7 +332,9 @@
   viewer.addEventListener('load',()=>{const s=slide(),doc=viewer.contentDocument;if(!s||!doc)return;s.fields.forEach(f=>doc.getElementById(f.id)?.addEventListener('click',()=>openField(f.id)));paint();doc.fonts?.ready.then(checkOverflow);});
   const originalSelect=selectSlide;selectSlide=function(index){originalSelect(index);selectEditorSlide();};
   undo.onclick=()=>{
-    const h=history.pop();if(!h)return;const s=state.slides.find(s=>s.id===h.uid);if(!s)return;
+    const h=history.pop();if(!h)return;
+    if(h.kind==='order'){recordOrder(h.value,false);renderOrder();updateUI();return;}
+    const s=state.slides.find(s=>s.id===h.uid);if(!s)return;
     const e=draft.edits[h.uid],current=h.kind==='field'?e?.fields[h.id]:e?.[h.kind];
     const value=h.previous ? (h.kind==='comment'?h.previous.text:h.previous.value) : (h.kind==='comment'?'':current?.before??(h.kind==='notes'?s.notes:s.fields.find(f=>f.id===h.id)?.value));
     record(s,h.kind,h.id,value,false);selectEditorSlide();
@@ -256,9 +342,10 @@
   function uuid(){return 'r'+(globalThis.crypto?.randomUUID?.().replace(/-/g,'').slice(0,16) || Date.now().toString(36)+Math.random().toString(36).slice(2,10));}
   async function copyAllChanges() {
     if(copying)return;
-    const data=copyData();if(!data.changes.length&&!data.comments.length)return;
+    const data=copyData();if(!data.changes.length&&!data.comments.length&&!data.order)return;
     const packet={schema:2,kind:'ppt-master-review',packet_id:uuid(),project_id:state.project_id,
       base_revision:draft.base_revision,changes:data.changes,base_values:data.base_values,comments:data.comments};
+    if(data.order)packet.order=data.order;
     const fields=data.changes.reduce((n,c)=>n+Object.keys(c.fields).length,0),notes=data.changes.filter(c=>'notes'in c).length;
     const summary=t(`正文修改 ${fields} 处 · 备注修改 ${notes} 页 · 批注 ${data.comments.length} 条`,`Text edits: ${fields} · Notes: ${notes} · Comments: ${data.comments.length}`);
     copying=true;updateUI();
@@ -311,9 +398,9 @@
       }
       const original=await (await fileHandle.getFile()).text();verifyFile(original);
       const data=packageData(), snapshot=clone(draft), saveId=uuid();
-      const packet=data.changes.length?{schema:2,kind:'ppt-master-review',packet_id:saveId,
-        project_id:state.project_id,base_revision:draft.base_revision,changes:data.changes,base_values:data.base_values,comments:[]}:null;
-      if(packet)snapshot.copies[saveId]={saved_html:true,saved_counter:snapshot.counter,versions:{fields:data.versions.fields,notes:data.versions.notes,comments:{},legacy:{}},content_done:false,comments_done:true};
+      const packet=data.changes.length||data.order?{schema:2,kind:'ppt-master-review',packet_id:saveId,
+        project_id:state.project_id,base_revision:draft.base_revision,changes:data.changes,base_values:data.base_values,comments:[],...(data.order?{order:data.order}:{})}:null;
+      if(packet)snapshot.copies[saveId]={saved_html:true,saved_counter:snapshot.counter,versions:{fields:data.versions.fields,notes:data.versions.notes,comments:{},legacy:{},...(data.order?{order:data.versions.order}:{})},content_done:false,comments_done:true};
       snapshot.file_save_id=saveId;snapshot.last_saved={revision:state.revision,signature:contentSignature(data)};
       // Comments keep their existing browser/clipboard lifecycle; only content is saved.
       for(const e of Object.values(snapshot.edits))delete e.comment;
@@ -331,7 +418,7 @@
       draft.file_save_id=saveId;draft.last_saved=snapshot.last_saved;
       if(packet)draft.copies[saveId]=snapshot.copies[saveId];
       persist();saving=false;
-      updateUI(contentIsSaved()?t('已写回 HTML 原文件。下次生成将自动同步正文和备注；批注仍需交给 Codex。','Saved to the original HTML. The next build imports text and notes; copy comments to Codex.'):t('已保存刚才的内容；保存期间的新修改尚未保存。','Snapshot saved; newer edits are still unsaved.'));
+      updateUI(contentIsSaved()?t('已写回 HTML 原文件。下次生成将自动同步正文、备注与页序；批注仍需交给 Codex。','Saved to the original HTML. The next build imports text, notes and page order; copy comments to Codex.'):t('已保存刚才的内容；保存期间的新修改尚未保存。','Snapshot saved; newer edits are still unsaved.'));
     } catch(error) {
       if(writable)try{await writable.abort();}catch(_){}
       fileHandle=null;saving=false;
@@ -341,5 +428,5 @@
   saveButton.addEventListener('click',saveHtml);
   copyButton.addEventListener('click',copyAllChanges);
   window.addEventListener('beforeunload',e=>{const data=packageData();if(!contentIsSaved(data)||data.comments.length){persist();e.preventDefault();e.returnValue='';}});
-  persist();syncComments();selectEditorSlide();updateUI();
+  persist();syncComments();renderOrder();selectEditorSlide();updateUI();
 })();
